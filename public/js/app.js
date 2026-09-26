@@ -647,8 +647,14 @@
       const health = await api("/health");
       $("#providerPill").textContent = `provider: ${health.provider}`;
     } catch (err) {
+      if (err.message === NO_BACKEND_MESSAGE) {
+        // No server behind this page (GitHub Pages, file://): the zero-server
+        // build in static/ does everything in-browser, so go there instead.
+        window.location.replace(new URL("../static/index.html", window.location.href).href);
+        return;
+      }
       $("#providerPill").textContent = "provider: unavailable";
-      showBackendBanner(err.message || NO_BACKEND_MESSAGE);
+      showBackendBanner(err.message);
     }
   })();
 
