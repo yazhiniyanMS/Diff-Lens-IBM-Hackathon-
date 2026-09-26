@@ -249,6 +249,11 @@ There are two independent builds in this repo — pick based on what you need:
 | Verification (test/lint) | yes, runs the repo's own commands | not available (a static page can't execute a repo's toolchain) |
 | Best for | the full feature set, a hosted demo URL | GitHub Pages, zero setup, nothing to run or deploy |
 
+**GitHub Pages:** Settings → Pages → *Deploy from a branch* → `main`, folder
+`/ (root)`. The site root (and `/public/`, if anyone opens that) sends
+visitors straight to the zero-server app in `static/`, so there's nothing
+else to configure.
+
 The rest of this section is the `server/`+`public/` build. **If you want
 GitHub Pages specifically, skip to [`static/`](docs/static-build.md)
 instead** — the full-stack build genuinely cannot run there (a static host
