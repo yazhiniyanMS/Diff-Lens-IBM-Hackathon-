@@ -1,0 +1,9 @@
+{
+  "name": "sample-app",
+  "version": "1.0.0",
+  "description": "A tiny, generic codebase for trying DiffLens's upload flow (folder/zip/GitHub URL) on something other than the demo-repo blast-radius scenario.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

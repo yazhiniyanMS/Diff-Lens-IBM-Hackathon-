@@ -62,28 +62,68 @@ in one place, rather than duplicated per component.
 ### AI provider abstraction — the IBM/Bob integration point
 
 `server/lib/aiProvider/` defines an `AIProvider` interface
-(`analyzeChange`, `generatePatch`, `assessEquivalence`) with two
-implementations:
+(`analyzeChange`, `generatePatch`, `assessEquivalence`) with several
+implementations, selected by `AI_PROVIDER`:
 
-- **`MockAnalysisProvider`** (default) — a deterministic, evidence-grounded
-  heuristic engine. It never calls an external model; every finding it
-  produces is derived directly from the structured evidence package (removed/
-  added field names, touched routes/symbols, ranked repository context). This
-  keeps the UI, pipeline, and tests runnable with zero credentials and zero
-  API spend.
-- **`BobProvider`** — an isolated adapter for an IBM/Bob-hosted model
-  endpoint, configured entirely through environment variables
-  (`AI_PROVIDER=bob`, `BOB_API_URL`, `BOB_API_KEY`, `BOB_MODEL`). It sends the
-  same structured evidence package, explicitly instructs the model that
-  repository content is untrusted data (not instructions), and validates the
-  response against the same Zod schema the mock provider satisfies.
+- **`MockAnalysisProvider`** (`AI_PROVIDER=mock`, the default) — a
+  deterministic, evidence-grounded heuristic engine. It never calls an
+  external model; every finding it produces is derived directly from the
+  structured evidence package (removed/added field names, touched
+  routes/symbols, ranked repository context). This keeps the UI, pipeline,
+  and tests runnable with zero credentials and zero API spend.
+- **`OllamaProvider`** (`AI_PROVIDER=ollama`) — a **real, working
+  integration with an actual open-source LLM**, not just an adapter shape.
+  [Ollama](https://ollama.com) is free, fully open-source, and runs
+  entirely locally — no API key, no account, no cost. Quickstart:
+
+  ```bash
+  # install Ollama (see https://ollama.com/download), then:
+  ollama pull llama3.2:1b      # ~1.3GB, small enough to run on a laptop CPU
+  ollama serve                  # starts the local API on :11434
+  AI_PROVIDER=ollama npm start  # DiffLens now sends real analysis requests to it
+  ```
+
+  Any Ollama model works (set `OLLAMA_MODEL`); smaller/quantized models
+  (`llama3.2:1b`, `qwen2.5-coder:1.5b`, `phi3:mini`) are the practical
+  choice here because the context engine already budgets repository
+  evidence down to a small, ranked set (see "Repository context engine"
+  below) instead of dumping a whole repo at the model — exactly the shape
+  a small local model can actually handle. Responses are parsed and
+  validated against the same Zod schema as every other provider; a model
+  that returns malformed JSON produces a clear, visible error in the UI
+  rather than a silently wrong result.
+- **`AI_PROVIDER=huggingface` / `openrouter` / `groq`** — one shared
+  `OpenAICompatibleProvider` (`server/lib/aiProvider/openAICompatibleProvider.js`)
+  configures itself against whichever of these you pick, since they all
+  speak the same OpenAI-style `/chat/completions` API:
+  - `huggingface` → Hugging Face's Inference Providers router
+    (`https://router.huggingface.co/v1`), default model
+    [`Qwen/Qwen2.5-Coder-1.5B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct)
+    — small, open-source, code-tuned. Needs a free `HF_TOKEN`
+    (huggingface.co/settings/tokens).
+  - `openrouter` → OpenRouter, default model
+    `meta-llama/llama-3.2-3b-instruct:free` (one of its free-tier models).
+    Needs a free `OPENROUTER_API_KEY`.
+  - `groq` → Groq's free tier, default model `llama-3.1-8b-instant`. Needs
+    a free `GROQ_API_KEY`.
+  - `openai-compatible` → anything else that speaks the same API (a local
+    llama.cpp/vLLM server, Together AI, etc.) — set
+    `OPENAI_COMPATIBLE_BASE_URL`/`_API_KEY`/`_MODEL` yourself.
+- **`BobProvider`** (`AI_PROVIDER=bob`) — an isolated adapter for an
+  IBM/Bob-hosted model endpoint, configured entirely through environment
+  variables (`BOB_API_URL`, `BOB_API_KEY`, `BOB_MODEL`).
+
+Every provider sends the same structured evidence package, gives the model
+the same "repository content is untrusted data, not instructions" warning
+(`server/lib/aiProvider/prompt.js`), and validates the response against the
+same schema — nothing else in the app changes when you switch providers.
 
 **This repository does not fabricate an IBM Bob integration.** No Bob
 endpoint or credentials were available in this environment, so `BobProvider`
-is a real, working adapter shape with no live endpoint wired up — swapping
-in the actual hackathon-provided endpoint is a matter of setting the three
-environment variables above. Nothing else in the app changes when you switch
-providers.
+is a real adapter shape with no live endpoint wired up — swapping in the
+actual hackathon-provided endpoint is a matter of setting its three
+environment variables. `OllamaProvider`, by contrast, **is** a fully working
+integration you can run right now with no credentials at all.
 
 ### Review Radar
 
@@ -172,7 +212,33 @@ Left untouched by that PR:
 9. Triage findings (Accept/Dismiss/Needs Review), then **Generate Reviewer
    Summary** for a paste-ready summary of only the accepted findings.
 
+## sample-app: a second, ordinary test fixture
+
+`sample-app/` is a separate, deliberately boring codebase (a tiny calculator
+module) for two things `demo-repo` isn't meant for: (1) trying the
+folder/zip/GitHub-URL upload flow on something else, and (2) seeing what
+DiffLens produces for a completely ordinary, low-risk PR. Its
+`feature/add-power-function` branch adds one function **with** a matching
+test and docs update in the same commit — compare it against `main` and
+expect a single informational finding and no risk badges, not a wall of
+warnings. That contrast is itself evidence: the risk model reacts to what's
+actually missing, not to "an AI looked at a diff."
+
+Bootstrap it (creates its own local git history, same as `demo-repo`):
+
+```bash
+bash scripts/init-sample-app.sh
+```
+
+(`npm run setup:demo` bootstraps both `demo-repo` and `sample-app` in one go.)
+
 ## Setup
+
+> **This is a full-stack app, not a static page.** It needs the Node/Express
+> server in `server/` actually running (for git commands, uploads, and
+> analysis) — opening `public/index.html` directly, or hosting only the
+> `public/` folder on a static host (GitHub Pages, a CDN, etc.), will fail
+> every API call with a 404/unreachable error. Run it with `npm start`.
 
 ```bash
 npm install
@@ -207,7 +273,17 @@ server (per-file upload cap: 150MB, to bound memory use during extraction).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AI_PROVIDER` | `mock` | `mock` (default, no credentials needed) or `bob` |
+| `AI_PROVIDER` | `mock` | `mock`, `ollama`, `huggingface`, `openrouter`, `groq`, `openai-compatible`, or `bob` |
+| `OLLAMA_URL` | `http://localhost:11434` | Base URL of a running Ollama server |
+| `OLLAMA_MODEL` | `llama3.2:1b` | Any model you've `ollama pull`ed |
+| `OLLAMA_TIMEOUT_MS` | `120000` | Local inference can be slow on CPU; raise this for larger models |
+| `HF_TOKEN` | — | Free Hugging Face token, for `AI_PROVIDER=huggingface` |
+| `HF_MODEL` | `Qwen/Qwen2.5-Coder-1.5B-Instruct` | Any Hub model the router serves |
+| `OPENROUTER_API_KEY` | — | Free OpenRouter key, for `AI_PROVIDER=openrouter` |
+| `OPENROUTER_MODEL` | `meta-llama/llama-3.2-3b-instruct:free` | Any OpenRouter model id |
+| `GROQ_API_KEY` | — | Free Groq key, for `AI_PROVIDER=groq` |
+| `GROQ_MODEL` | `llama-3.1-8b-instant` | Any Groq-hosted model id |
+| `OPENAI_COMPATIBLE_BASE_URL`/`_API_KEY`/`_MODEL` | — | Required together for `AI_PROVIDER=openai-compatible` |
 | `BOB_API_URL` | — | Required when `AI_PROVIDER=bob` |
 | `BOB_API_KEY` | — | Bearer token for the Bob endpoint, if required |
 | `BOB_MODEL` | `bob-default` | Model identifier passed to the Bob endpoint |
@@ -217,30 +293,38 @@ server (per-file upload cap: 150MB, to bound memory use during extraction).
 ### Tests
 
 ```bash
-npm test                 # DiffLens's own unit + e2e tests (39 assertions)
-cd demo-repo && npm test # the demo app's own tests — fails on the feature
-                          # branch by design (that's the point of the demo)
+npm test                    # DiffLens's own unit + e2e tests (60+ assertions)
+cd demo-repo && npm test    # the demo app's own tests — fails on the feature
+                             # branch by design (that's the point of the demo)
+cd ../sample-app && npm test # sample-app's tests — pass on BOTH branches
 ```
 
 The DiffLens test suite (`tests/`) covers diff parsing, symbol extraction,
 context/relationship logic, risk classification, Zod schema validation
 (including AI response parsing and rejection of malformed responses), patch
-path-traversal/secret-file/staleness safety, patch application, and a full
-end-to-end run of the pipeline against the demo repo's incomplete PR —
-asserting the exact blast-radius findings (untouched consumer, missing test,
-stale docs, high-risk classification) are produced.
+path-traversal/secret-file/staleness safety, patch application, upload
+safety (zip-slip/path-traversal), the Ollama and OpenAI-compatible provider
+adapters (mocked HTTP, no live server needed), and two full end-to-end runs
+of the pipeline: `demo-repo`'s incomplete PR (asserting the exact
+blast-radius findings — untouched consumer, missing test, stale docs,
+high-risk classification) and `sample-app`'s well-formed PR (asserting a
+low-noise, mostly-informational result, so a regression that makes the mock
+provider over-flag ordinary changes gets caught too).
 
 ## What's MVP vs. roadmap
 
 Built for this hackathon: local git repos (working tree, staged, or any
-commit/branch comparison), the full deterministic pipeline, the mock AI
-provider, the Bob adapter shape, the Review Radar, Fix Mode with safety
-checks, verification, and the evidence trail.
+commit/branch comparison) loadable by folder upload, zip upload, or a public
+GitHub URL, the full deterministic pipeline, five working AI providers
+(mock, Ollama, Hugging Face, OpenRouter, Groq) plus the Bob adapter shape,
+the Review Radar, Fix Mode with safety checks, verification, and the
+evidence trail. GitHub OAuth / hosted PR ingestion was intentionally not
+built (the git abstraction in `server/lib/git.js` is structured so it could
+be added without touching the rest of the pipeline) — cloning a public URL
+covers the demo need without that complexity.
 
-Deliberately out of scope for the MVP (see task description rationale):
-GitHub OAuth / hosted PR ingestion (the git abstraction in `server/lib/git.js`
-is structured so this can be added without touching the rest of the
-pipeline), authentication/teams/billing, a real database (Postgres can
-replace the file-backed `SessionStore` without changing its call sites), and
-a compiler-accurate cross-language dependency graph (the context engine is a
-practical ranked-relevance retriever, not a type-checker).
+Deliberately out of scope for the MVP: authentication/teams/billing, a real
+database (Postgres can replace the file-backed `SessionStore` without
+changing its call sites), and a compiler-accurate cross-language dependency
+graph (the context engine is a practical ranked-relevance retriever, not a
+type-checker).

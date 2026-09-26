@@ -135,6 +135,18 @@ textarea:focus-visible,
 }
 
 /* Layout */
+.backend-banner {
+  background: var(--risk-dim);
+  color: var(--risk);
+  border-bottom: 1px solid var(--risk);
+  padding: 10px 22px;
+  font-size: var(--fs-small);
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
 .app-header {
   display: flex;
   align-items: center;

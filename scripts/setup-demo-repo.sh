@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Initializes demo-repo/ as a local git repo (if not already) and provisions
-# its dependencies, then sanity-checks its two demo branches.
+# Initializes demo-repo/ and sample-app/ as local git repos (if not already),
+# provisions demo-repo's dependencies, and sanity-checks all branches.
 set -euo pipefail
 
-"$(dirname "$0")/init-demo-repo.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-cd "$(dirname "$0")/../demo-repo"
+"$SCRIPT_DIR/init-demo-repo.sh"
+
+cd "$SCRIPT_DIR/../demo-repo"
 
 echo "Installing demo-repo dependencies..."
 npm install --silent
@@ -26,3 +28,12 @@ npm test || true
 
 echo
 echo "Demo repo ready. Point DiffLens at this directory and compare main -> feature/simplify-order-response."
+
+echo
+"$SCRIPT_DIR/init-sample-app.sh"
+cd "$SCRIPT_DIR/../sample-app"
+echo
+echo "sample-app tests (both branches should pass -- it's a well-formed PR, not a trap):"
+npm test || true
+echo
+echo "sample-app ready. Compare main -> feature/add-power-function for a low-risk contrast to demo-repo."

@@ -53,9 +53,24 @@ export async function runAnalysis({ repoPath, base, head }) {
     changeSignals: {
       removedFields: [...changeSignals.removedFields],
       addedFields: [...changeSignals.addedFields],
+      addedFunctionNames: [...changeSignals.addedFunctionNames],
+      removedFunctionNames: [...changeSignals.removedFunctionNames],
       touchedSymbolNames: [...changeSignals.touchedSymbolNames],
       touchedRoutes: changeSignals.touchedRoutes,
     },
+    // Capped added-line text per changed file, so heuristics (and any real
+    // LLM provider) can tell whether a new symbol was actually exercised
+    // by a test/doc file changed in this SAME diff -- contextItems only
+    // covers files outside the diff, so this is the only way to see
+    // "the PR added the function AND its test in one commit" evidence.
+    addedLinesByFile: Object.fromEntries(
+      parsedFiles
+        .filter((f) => !f.isBinary)
+        .map((f) => [
+          f.newPath,
+          f.hunks.flatMap((h) => h.lines.filter((l) => l.type === "add").map((l) => l.content)).slice(0, 60),
+        ])
+    ),
     contextItems: contextItems.map(({ file, relationshipType, ring, score, matches, lines }) => ({
       file,
       relationshipType,

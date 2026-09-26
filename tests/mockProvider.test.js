@@ -58,6 +58,42 @@ test("mock provider flags the removed-field consumer as an untouched, high-signa
   assert.ok(result.untouchedFiles.some((u) => u.file === "frontend/src/OrderCard.js"));
 });
 
+function additiveChangeFixture({ testCoversNewFunction }) {
+  return {
+    changedFiles: ["src/calculator.js", "tests/calculator.test.js"],
+    diffSummary: { additions: 8, deletions: 0 },
+    repoMeta: { name: "sample-app" },
+    changeSignals: {
+      removedFields: new Set(),
+      addedFields: new Set(),
+      addedFunctionNames: new Set(["power"]),
+      removedFunctionNames: new Set(),
+      touchedSymbolNames: new Set(["power"]),
+      touchedRoutes: [],
+    },
+    contextItems: [],
+    addedLinesByFile: {
+      "src/calculator.js": ["export function power(base, exponent) {", "  return Math.pow(base, exponent);", "}"],
+      "tests/calculator.test.js": testCoversNewFunction
+        ? ['test("power", () => {', "  assert.equal(power(2, 10), 1024);", "});"]
+        : [],
+    },
+  };
+}
+
+test("mock provider does not flag a missing test when the new function is exercised in the same diff", async () => {
+  const provider = new MockAnalysisProvider();
+  const result = await provider.analyzeChange(additiveChangeFixture({ testCoversNewFunction: true }));
+  assert.equal(result.missingTests.length, 0);
+  assert.match(result.intent, /power/);
+});
+
+test("mock provider flags a missing test when a new function has no test coverage anywhere", async () => {
+  const provider = new MockAnalysisProvider();
+  const result = await provider.analyzeChange(additiveChangeFixture({ testCoversNewFunction: false }));
+  assert.ok(result.missingTests.some((t) => t.title.includes("power")));
+});
+
 test("mock provider generated patch validates against PatchProposalSchema", async () => {
   const provider = new MockAnalysisProvider();
   const evidence = evidenceFixture();
