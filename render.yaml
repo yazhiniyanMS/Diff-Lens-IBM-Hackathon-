@@ -1,0 +1,17 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec) -- lets DiffLens
+# be deployed with one click to a free Node-capable host, since it needs a
+# live server (git, file uploads, patch application) that a static host like
+# GitHub Pages cannot run at all. Bootstraps demo-repo/ and sample-app/ at
+# build time so a fresh deploy is immediately demo-ready.
+services:
+  - type: web
+    name: difflens
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run setup:samples
+    startCommand: npm start
+    envVars:
+      - key: AI_PROVIDER
+        value: mock
+      - key: NODE_VERSION
+        value: 20.11.0

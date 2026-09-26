@@ -31,7 +31,9 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: err.message || "Internal error" });
 });
 
-const PORT = process.env.DIFFLENS_PORT || 5175;
+// DIFFLENS_PORT is DiffLens's own override; PORT is the convention most
+// PaaS hosts (Render, Railway, Heroku, ...) inject automatically.
+const PORT = process.env.DIFFLENS_PORT || process.env.PORT || 5175;
 app.listen(PORT, () => {
   console.log(`DiffLens server listening on http://localhost:${PORT}`);
 });
