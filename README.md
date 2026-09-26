@@ -2,6 +2,7 @@
 
 **Review Pull Requests by Intent, Not Just by Lines Changed.**
 Target workflow: Pull-request review and change-risk assessment
+
 DiffLens is an intent-aware pull-request review and change-risk assessment
 tool built for the IBM hackathon problem statement: traditional code review
 is line-oriented, but a small diff can have a large behavioral blast radius
