@@ -58,8 +58,35 @@
       headSel.appendChild(new Option(refLabel(ref), ref));
     }
     const mainLike = info.branches.find((b) => b === "main" || b === "master") || info.branches[0];
-    baseSel.value = mainLike || "WORKING";
-    headSel.value = info.currentRef && info.branches.includes(info.currentRef) ? info.currentRef : "WORKING";
+    const base = mainLike || "WORKING";
+    baseSel.value = base;
+
+    // Head must default to something that actually differs from base, or
+    // the first analysis a new user runs silently compares a branch to
+    // itself and produces an empty diff. Prefer: current checked-out ref
+    // (if different from base) -> another branch (most likely the real PR
+    // to review) -> working tree -> staged, as a last resort.
+    const candidates = [];
+    if (info.currentRef && info.branches.includes(info.currentRef) && info.currentRef !== base) {
+      candidates.push(info.currentRef);
+    }
+    const otherBranch = info.branches.find((b) => b !== base);
+    if (otherBranch) candidates.push(otherBranch);
+    candidates.push("WORKING", "STAGED");
+
+    headSel.value = candidates[0];
+    updateHeadHint(base, headSel.value);
+    headSel.onchange = () => updateHeadHint(baseSel.value, headSel.value);
+    baseSel.onchange = () => updateHeadHint(baseSel.value, headSel.value);
+  }
+
+  function updateHeadHint(base, head) {
+    const statusEl = $("#diffStatus");
+    if (base === head) {
+      setStatus(statusEl, "Base and head are the same ref — pick a different head to see a diff.", "error");
+    } else {
+      setStatus(statusEl, "");
+    }
   }
 
   function refLabel(ref) {
@@ -138,8 +165,12 @@
       state.session = session;
       $("#providerPill").textContent = `provider: ${session.provider}`;
       renderSession(session);
-      setStatus(statusEl, "Analysis complete.", "ok");
-      $("#summarySection").classList.remove("hidden");
+      if (session.empty) {
+        setStatus(statusEl, "No changes to analyze — base and head are identical. Pick a different head above.", "error");
+      } else {
+        setStatus(statusEl, "Analysis complete.", "ok");
+        $("#summarySection").classList.remove("hidden");
+      }
     } catch (err) {
       setStatus(statusEl, err.message, "error");
     } finally {
