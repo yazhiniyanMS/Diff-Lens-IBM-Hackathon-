@@ -584,6 +584,31 @@
     return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // --- Theme toggle --------------------------------------------------------------
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    const btn = $("#themeToggleBtn");
+    const icon = $("#themeToggleIcon");
+    const label = $("#themeToggleLabel");
+    const isLight = theme === "light";
+    btn.setAttribute("aria-pressed", String(isLight));
+    icon.textContent = isLight ? "☀" : "☾";
+    label.textContent = isLight ? "Light" : "Dark";
+    try {
+      localStorage.setItem("difflens-theme", theme);
+    } catch {
+      // Private browsing / storage disabled: theme just won't persist.
+    }
+  }
+
+  $("#themeToggleBtn").addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme") || "dark";
+    applyTheme(current === "light" ? "dark" : "light");
+  });
+
+  applyTheme(document.documentElement.getAttribute("data-theme") || "dark");
+
   // --- Init --------------------------------------------------------------------
 
   (async () => {
