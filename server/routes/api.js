@@ -17,7 +17,7 @@ const store = getStore();
 // file even when the working tree is small, so the per-file cap is well
 // above typical source files while still refusing to buffer something huge
 // into memory.
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024, files: 8000 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024, files: 20000 } });
 
 function asyncRoute(fn) {
   return (req, res, next) => fn(req, res, next).catch(next);
@@ -99,6 +99,29 @@ router.post(
     // display in that case.
     if (info.valid && repoPath === dir) {
       info.name = req.file.originalname.replace(/\.zip$/i, "") || info.name;
+    }
+    res.json(info);
+  })
+);
+
+// GitHub (or any public http(s) git host) URL: clone server-side into a
+// fresh directory. Public/unauthenticated only -- see git.cloneRepo.
+router.post(
+  "/repos/clone",
+  asyncRoute(async (req, res) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: "url is required" });
+    let dir;
+    try {
+      dir = newUploadDir();
+      await git.cloneRepo(url, dir);
+    } catch (err) {
+      return res.status(200).json({ valid: false, reason: err.message });
+    }
+    const info = await describeRepo(dir);
+    if (info.valid) {
+      const fromUrl = url.replace(/\.git$/i, "").split("/").filter(Boolean).pop();
+      if (fromUrl) info.name = fromUrl;
     }
     res.json(info);
   })

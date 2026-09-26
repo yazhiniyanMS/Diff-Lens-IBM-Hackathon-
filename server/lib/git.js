@@ -29,6 +29,51 @@ async function run(repoPath, args, options = {}) {
   }
 }
 
+const CLONE_TIMEOUT_MS = 60_000;
+
+/** Only plain http(s) URLs are accepted -- see validateCloneUrl for why. */
+export function validateCloneUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error("Not a valid URL.");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Only http:// and https:// git URLs are supported (no ssh://, git://, or file://).");
+  }
+  return parsed.toString();
+}
+
+/**
+ * Clone a remote repository (public, unauthenticated) into destDir.
+ * Restricted to http(s) URLs and run with execFile (no shell), so the URL
+ * can never be interpreted as a shell command or a local file path.
+ * Fetches all branches with limited history depth, which is enough to diff
+ * any two branches/commits within that window without downloading the
+ * entire history of a large repository.
+ */
+export async function cloneRepo(rawUrl, destDir, { depth = 100 } = {}) {
+  const url = validateCloneUrl(rawUrl);
+  try {
+    await execFileAsync("git", ["clone", "--depth", String(depth), "--no-single-branch", "--", url, destDir], {
+      maxBuffer: 1024 * 1024 * 64,
+      timeout: CLONE_TIMEOUT_MS,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    });
+  } catch (err) {
+    const stderr = (err.stderr || "").trim();
+    if (/could not read username|terminal prompts disabled|authentication failed/i.test(stderr)) {
+      throw new Error("Could not clone: repository not found, or it's private (only public repos are supported).");
+    }
+    if (/timed? ?out|timeout/i.test(stderr) || err.killed) {
+      throw new Error("Clone timed out -- the repository may be too large for the current depth/time limit.");
+    }
+    const message = stderr || err.message || String(err);
+    throw new Error(`git clone failed: ${message.split("\n").pop().trim()}`);
+  }
+}
+
 export function isLikelyGitRepo(repoPath) {
   if (!repoPath) return false;
   try {

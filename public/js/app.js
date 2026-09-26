@@ -1,6 +1,12 @@
 (() => {
   const $ = (sel) => document.querySelector(sel);
 
+  // Never filter out .git -- DiffLens needs it. Everything else here is
+  // generated/dependency output that (a) DiffLens's own analysis already
+  // ignores and (b) is the single biggest reason a folder upload fails: a
+  // real project's node_modules alone can be tens of thousands of files.
+  const UPLOAD_IGNORE_RE = /(^|\/)(node_modules|dist|build|coverage|\.next|\.nuxt|\.cache|venv|\.venv|__pycache__|target|vendor)(\/|$)/i;
+
   const state = {
     repoPath: "",
     repoInfo: null,
@@ -53,10 +59,20 @@
   $("#chooseZipBtn").addEventListener("click", () => $("#zipInput").click());
 
   $("#folderInput").addEventListener("change", async (e) => {
-    const files = Array.from(e.target.files || []);
+    const allFiles = Array.from(e.target.files || []);
     const statusEl = $("#repoStatus");
-    if (!files.length) return;
-    setStatus(statusEl, `Uploading ${files.length} file(s)…`);
+    if (!allFiles.length) return;
+
+    const files = allFiles.filter((f) => !UPLOAD_IGNORE_RE.test(f.webkitRelativePath || f.name));
+    const skipped = allFiles.length - files.length;
+    if (!files.length) {
+      return setStatus(statusEl, "Nothing to upload after skipping node_modules/build/etc. Is this the right folder?", "error");
+    }
+
+    setStatus(
+      statusEl,
+      `Uploading ${files.length} file(s)${skipped ? ` (skipped ${skipped} in node_modules/build/dist/etc.)` : ""}…`
+    );
     try {
       const formData = new FormData();
       const relativePaths = [];
@@ -89,6 +105,22 @@
     } finally {
       e.target.value = "";
     }
+  });
+
+  $("#loadGithubBtn").addEventListener("click", async () => {
+    const url = $("#githubUrl").value.trim();
+    const statusEl = $("#repoStatus");
+    if (!url) return setStatus(statusEl, "Enter a GitHub repository URL.", "error");
+    setStatus(statusEl, "Cloning repository (public repos only, this can take a moment)…");
+    try {
+      const info = await api("/repos/clone", { method: "POST", body: JSON.stringify({ url }) });
+      onRepoLoaded(info);
+    } catch (err) {
+      setStatus(statusEl, err.message, "error");
+    }
+  });
+  $("#githubUrl").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") $("#loadGithubBtn").click();
   });
 
   $("#loadPathBtn").addEventListener("click", async () => {

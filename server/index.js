@@ -1,4 +1,5 @@
 import express from "express";
+import multer from "multer";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import apiRouter from "./routes/api.js";
@@ -20,6 +21,13 @@ app.get("/", (req, res) => {
 // instead of crashing the process or leaking stack traces to the client.
 app.use((err, req, res, _next) => {
   console.error(err);
+  if (err instanceof multer.MulterError) {
+    const friendly = {
+      LIMIT_FILE_COUNT: "That folder has too many files to upload. DiffLens already skips node_modules/dist/build/.git objects aside — try excluding other large generated folders, or upload a .zip instead.",
+      LIMIT_FILE_SIZE: "One of the files is larger than the 150MB per-file upload limit.",
+    }[err.code];
+    return res.status(413).json({ error: friendly || `Upload rejected: ${err.message}` });
+  }
   res.status(500).json({ error: err.message || "Internal error" });
 });
 
