@@ -22,6 +22,12 @@
   --muted: #64748b;
   --focus-ring: #5fb8e8;
 
+  --diff-add-bg: rgba(74, 222, 128, 0.08);
+  --diff-add-fg: #b7f5c9;
+  --diff-del-bg: rgba(239, 90, 111, 0.09);
+  --diff-del-fg: #f8c1c9;
+  --chip-bg: #202632;
+
   /* Type scale: floors chosen to clear the desktop legibility minimum
      (macOS default 13pt / minimum 10pt, per accessibility.md) even for
      the smallest metadata text; only badges (short, bold, all-caps
@@ -30,6 +36,38 @@
   --fs-ui: 13px;
   --fs-small: 12.5px;
   --fs-micro: 11.5px;
+}
+
+/* Light appearance, toggled via the header button (persisted in
+   localStorage). Every color a component uses is a variable, so this
+   block is the only place the two appearances diverge. */
+:root[data-theme="light"] {
+  --bg-0: #f7f8fa;
+  --bg-1: #ffffff;
+  --bg-2: #eef0f4;
+  --bg-3: #e3e7ee;
+  --border: #d7dce3;
+  --border-soft: #e4e8ee;
+  --text-0: #10141b;
+  --text-1: #384152;
+  --text-2: #5b6472;
+
+  --info: #0b6f96;
+  --info-dim: #e3f4fb;
+  --warn: #8a5a00;
+  --warn-dim: #fbf0d9;
+  --risk: #b3283f;
+  --risk-dim: #fbe4e8;
+  --ok: #1f7a44;
+  --ok-dim: #e2f5ea;
+  --muted: #6b7688;
+  --focus-ring: #0b6f96;
+
+  --diff-add-bg: #e2f5ea;
+  --diff-add-fg: #1f7a44;
+  --diff-del-bg: #fbe4e8;
+  --diff-del-fg: #b3283f;
+  --chip-bg: #eef0f4;
 }
 
 * { box-sizing: border-box; }
@@ -112,6 +150,8 @@ textarea:focus-visible,
 .brand-mark { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
 .brand-mark span { color: var(--info); }
 .tagline { color: var(--text-2); font-size: var(--fs-small); }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+#themeToggleBtn { display: flex; align-items: center; gap: 6px; }
 .provider-pill {
   font-size: var(--fs-micro);
   color: var(--text-2);
@@ -172,8 +212,8 @@ textarea:focus-visible,
 .diff-file-header { color: var(--info); padding: 6px 12px; font-family: var(--mono); font-size: var(--fs-small); border-top: 1px solid var(--border-soft); }
 .diff-file-header:first-child { border-top: none; }
 .diff-hunk-header { color: var(--text-2); padding: 2px 12px; }
-.diff-add { background: rgba(74, 222, 128, 0.08); color: #b7f5c9; }
-.diff-del { background: rgba(239, 90, 111, 0.09); color: #f8c1c9; }
+.diff-add { background: var(--diff-add-bg); color: var(--diff-add-fg); }
+.diff-del { background: var(--diff-del-bg); color: var(--diff-del-fg); }
 .diff-context { color: var(--text-1); }
 
 .main-col { display: flex; flex-direction: column; gap: 16px; }
@@ -251,8 +291,8 @@ textarea:focus-visible,
 .badge.risk-high { background: var(--risk-dim); color: var(--risk); }
 .badge.risk-medium { background: var(--warn-dim); color: var(--warn); }
 .badge.risk-low { background: var(--info-dim); color: var(--info); }
-.badge.risk-informational { background: #202632; color: var(--text-2); }
-.badge.provenance { background: #202632; color: var(--text-2); margin-left: 6px; }
+.badge.risk-informational { background: var(--chip-bg); color: var(--text-2); }
+.badge.provenance { background: var(--chip-bg); color: var(--text-2); margin-left: 6px; }
 
 .finding-summary { color: var(--text-1); font-size: var(--fs-small); margin: 6px 0; }
 .finding-rationale { color: var(--text-2); font-size: var(--fs-micro); font-style: italic; margin: 4px 0; }

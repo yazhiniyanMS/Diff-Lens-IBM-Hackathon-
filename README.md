@@ -53,6 +53,12 @@ database, since a single-file store is the right amount of infrastructure
 for a hackathon MVP; the interface is shaped so SQLite/Postgres can replace
 it later without touching callers.
 
+The UI defaults to a dark developer-tool appearance with a light theme
+available via the toggle in the header (persisted in `localStorage`).
+Every color in `public/css/style.css` is a CSS custom property, so the two
+appearances (including the Review Radar's node colors) are defined once,
+in one place, rather than duplicated per component.
+
 ### AI provider abstraction — the IBM/Bob integration point
 
 `server/lib/aiProvider/` defines an `AIProvider` interface

@@ -3,3 +3,4 @@ node_modules/
 *.log
 demo-repo/node_modules/
 demo-repo/package-lock.json
+.claude/settings.local.json
