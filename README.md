@@ -237,14 +237,33 @@ bash scripts/init-sample-app.sh
 > **This is a full-stack app, not a static page.** It needs the Node/Express
 > server in `server/` actually running (for git commands, uploads, and
 > analysis) — opening `public/index.html` directly, or hosting only the
-> `public/` folder on a static host (GitHub Pages, a CDN, etc.), will fail
-> every API call with a 404/unreachable error. Run it with `npm start`.
+> `public/` folder on a static host, **will not and cannot work**: the page
+> talks to `/api/*`, which only exists when the Node process is running.
+> **This includes GitHub Pages** — enabling Pages on this repo serves the
+> raw files with no backend behind them at all; there is no configuration
+> that makes that work, because Pages cannot run a Node server. Either run
+> it locally (below) or deploy it somewhere that runs Node (next section).
 
 ```bash
 npm install
 npm run setup:demo   # optional: re-provisions demo-repo/node_modules if needed
 npm start             # DiffLens on http://localhost:5175
 ```
+
+### Want a shareable URL instead of running it locally?
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/yazhiniyanMS/Diff-Lens-IBM-Hackathon-)
+
+`render.yaml` in this repo is a [Render Blueprint](https://render.com/docs/blueprint-spec):
+click the button (needs a free Render account), and it builds and starts
+this exact app — `npm install`, bootstraps `demo-repo`/`sample-app`, runs
+`npm start` — on Render's free tier, which does run a real Node process
+(unlike GitHub Pages). The free tier spins the instance down after 15
+minutes idle and takes a few seconds to wake back up on the next request;
+that's expected, not a bug. Any other Node-capable host (Railway, Fly.io,
+a VPS, ...) works the same way: `npm install && npm run setup:samples` to
+build, `npm start` to run, and it reads the `PORT` env var those platforms
+set automatically.
 
 Then open the app and load a repository one of four ways:
 
