@@ -21,15 +21,24 @@ export class MockAnalysisProvider extends AIProvider {
     const removed = [...changeSignals.removedFields];
     const added = [...changeSignals.addedFields];
     const routes = changeSignals.touchedRoutes;
+    const addedFunctions = [...(changeSignals.addedFunctionNames || [])];
+    const addedLinesByFile = evidence.addedLinesByFile || {};
+    const isFieldRename = removed.length > 0 && added.length > 0;
 
-    const intent = buildIntent({ removed, added, routes, diffSummary, changedFiles });
+    const intent = buildIntent({ removed, added, routes, diffSummary, changedFiles, addedFunctions });
 
     const behavioralChanges = [];
-    if (removed.length && added.length) {
+    if (isFieldRename) {
       behavioralChanges.push({
         summary: `The response/data shape changed: field(s) [${removed.join(", ")}] were removed and [${added.join(", ")}] were introduced in ${changedFiles.join(", ")}.`,
         provenance: "fact",
         evidence: changedFiles.map((f) => ({ file: f, lines: [], note: "field rename observed in diff" })),
+      });
+    } else if (addedFunctions.length) {
+      behavioralChanges.push({
+        summary: `New function(s) [${addedFunctions.join(", ")}] added in ${changedFiles.join(", ")}.`,
+        provenance: "fact",
+        evidence: changedFiles.map((f) => ({ file: f, note: "new function observed in diff" })),
       });
     }
 
@@ -86,6 +95,30 @@ export class MockAnalysisProvider extends AIProvider {
         suggestedAssertions: added.map((f) => `expect(response.body).to.have.property('${f}')`),
         evidence: changedFiles.map((f) => ({ file: f })),
       });
+    }
+
+    // Generic coverage check for any newly added function, independent of
+    // the field-rename pattern above: was it referenced by a test file
+    // changed in this same diff, or by an existing test file elsewhere in
+    // the repo? This is what keeps an ordinary additive PR (not just the
+    // API-contract-change scenario) from producing an empty, unhelpful
+    // review brief.
+    const changedTestLines = changedFiles
+      .filter((f) => /test|spec|__tests__/i.test(f))
+      .flatMap((f) => addedLinesByFile[f] || []);
+    for (const fn of addedFunctions) {
+      const referencedIn = (lines) => lines.some((l) => new RegExp(`\\b${escapeRegex(fn)}\\b`).test(l));
+      const coveredBySameDiffTest = referencedIn(changedTestLines);
+      const coveredByExistingTest = testItems.some((t) => t.matches.some((m) => m.kind === "symbol" && m.term === fn));
+      if (!coveredBySameDiffTest && !coveredByExistingTest) {
+        missingTests.push({
+          title: `Add a test for new function \`${fn}\``,
+          rationale: `\`${fn}\` was added in this diff but no test (in this PR or elsewhere in the repo) appears to exercise it by name.`,
+          targetFile: "",
+          suggestedAssertions: [`assert.equal(${fn}(/* inputs */), /* expected */)`],
+          evidence: changedFiles.map((f) => ({ file: f, note: `defines/touches ${fn}` })),
+        });
+      }
     }
 
     const documentationGaps = docItems
@@ -165,7 +198,7 @@ export class MockAnalysisProvider extends AIProvider {
   }
 }
 
-function buildIntent({ removed, added, routes, diffSummary, changedFiles }) {
+function buildIntent({ removed, added, routes, diffSummary, changedFiles, addedFunctions = [] }) {
   if (removed.length && added.length && routes.length) {
     return `Rename/restructure the response field(s) [${removed.join(", ")}] to [${added.join(", ")}] on ${routes
       .map((r) => `${r.method} ${r.path}`)
@@ -174,7 +207,14 @@ function buildIntent({ removed, added, routes, diffSummary, changedFiles }) {
   if (removed.length && added.length) {
     return `Rename field(s) [${removed.join(", ")}] to [${added.join(", ")}] in ${changedFiles.join(", ")}.`;
   }
+  if (addedFunctions.length) {
+    return `Add new function(s) [${addedFunctions.join(", ")}] in ${changedFiles.join(", ")}.`;
+  }
   return `Modify ${changedFiles.join(", ")} (${diffSummary.additions} additions, ${diffSummary.deletions} deletions); no clear field-level contract signal detected.`;
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function describeReason(item) {

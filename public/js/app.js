@@ -15,19 +15,50 @@
     session: null,
   };
 
+  // A 404/non-JSON response from an /api/* call almost always means there is
+  // no live DiffLens server behind this page at all (opened as a static
+  // file, hosted on a static-only host like GitHub Pages, or the server
+  // process isn't running) -- not a real "not found" from the app itself.
+  // Every real DiffLens error responds with JSON, so failing to parse JSON
+  // is itself the signal.
+  const NO_BACKEND_MESSAGE =
+    "Can't reach the DiffLens server API (got a non-JSON response). This page needs the Node server running " +
+    "-- start it with `npm start` per the README. It will not work opened as a static file or hosted without " +
+    "that server (e.g. GitHub Pages).";
+
+  async function parseJsonOrExplain(res) {
+    let body;
+    try {
+      body = await res.json();
+    } catch {
+      // A real DiffLens server always answers /api/* with JSON, success or
+      // error. Anything else (an HTML 404 page, a static-file host's error
+      // page, an empty 501) means this page isn't actually talking to it.
+      throw new Error(NO_BACKEND_MESSAGE);
+    }
+    return body;
+  }
+
   async function api(path, opts = {}) {
-    const res = await fetch(`/api${path}`, {
-      headers: { "content-type": "application/json" },
-      ...opts,
-    });
-    const body = await res.json().catch(() => ({}));
+    let res;
+    try {
+      res = await fetch(`/api${path}`, { headers: { "content-type": "application/json" }, ...opts });
+    } catch {
+      throw new Error(NO_BACKEND_MESSAGE);
+    }
+    const body = await parseJsonOrExplain(res);
     if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
     return body;
   }
 
   async function apiUpload(path, formData) {
-    const res = await fetch(`/api${path}`, { method: "POST", body: formData });
-    const body = await res.json().catch(() => ({}));
+    let res;
+    try {
+      res = await fetch(`/api${path}`, { method: "POST", body: formData });
+    } catch {
+      throw new Error(NO_BACKEND_MESSAGE);
+    }
+    const body = await parseJsonOrExplain(res);
     if (!res.ok) throw new Error(body.error || `Upload failed (${res.status})`);
     return body;
   }
@@ -615,8 +646,17 @@
     try {
       const health = await api("/health");
       $("#providerPill").textContent = `provider: ${health.provider}`;
-    } catch {
+    } catch (err) {
       $("#providerPill").textContent = "provider: unavailable";
+      showBackendBanner(err.message || NO_BACKEND_MESSAGE);
     }
   })();
+
+  function showBackendBanner(message) {
+    const banner = document.createElement("div");
+    banner.className = "backend-banner";
+    banner.setAttribute("role", "alert");
+    banner.textContent = message;
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
 })();

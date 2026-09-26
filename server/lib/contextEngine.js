@@ -28,6 +28,8 @@ export async function extractChangeSignals(repoPath, base, head, parsedFiles) {
     changedFiles: [],
     removedFields: new Set(),
     addedFields: new Set(),
+    addedFunctionNames: new Set(),
+    removedFunctionNames: new Set(),
     touchedSymbolNames: new Set(),
     touchedRoutes: [],
   };
@@ -47,6 +49,15 @@ export async function extractChangeSignals(repoPath, base, head, parsedFiles) {
     const { removed, added } = diffFieldSets(oldSymbols, newSymbols);
     removed.forEach((f) => signals.removedFields.add(f));
     added.forEach((f) => signals.addedFields.add(f));
+
+    const oldFnNames = new Set((oldSymbols.functions || []).map((f) => f.name));
+    const newFnNames = new Set((newSymbols.functions || []).map((f) => f.name));
+    for (const name of newFnNames) {
+      if (!oldFnNames.has(name)) signals.addedFunctionNames.add(name);
+    }
+    for (const name of oldFnNames) {
+      if (!newFnNames.has(name)) signals.removedFunctionNames.add(name);
+    }
 
     for (const fn of [...(newSymbols.functions || []), ...(oldSymbols.functions || [])]) {
       signals.touchedSymbolNames.add(fn.name);
