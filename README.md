@@ -147,7 +147,9 @@ Left untouched by that PR:
 
 ### Demo flow
 
-1. Point DiffLens at `demo-repo`, compare `main` → `feature/simplify-order-response`.
+1. Click **Choose Repository Folder** and select `demo-repo/` (or **Upload
+   .zip** with a zip of it — either way its `.git` history comes along, so
+   DiffLens can diff it). Compare `main` → `feature/simplify-order-response`.
 2. Inspect the raw diff — it's tiny, and looks fine.
 3. Click **Analyze with DiffLens**. Watch the intent get inferred.
 4. The Review Radar populates around the 2 changed files: the frontend
@@ -172,9 +174,19 @@ npm run setup:demo   # optional: re-provisions demo-repo/node_modules if needed
 npm start             # DiffLens on http://localhost:5175
 ```
 
-Then open the app, enter `./demo-repo` (or an absolute path) as the
-repository, validate, choose `main` → `feature/simplify-order-response`, and
-analyze.
+Then open the app and load a repository one of three ways:
+
+- **Choose Repository Folder** — picks a local folder via the browser's
+  native directory picker and uploads it (Chromium-based browsers include
+  hidden files/folders in that selection, so `.git` comes along).
+- **Upload .zip** — upload a zip of the repository (`.git` included).
+- **Advanced: use a path already on this server** — for running DiffLens
+  and the repo on the same machine, e.g. local development
+  (`./demo-repo` works out of the box).
+
+Either way, once loaded, choose `main` → `feature/simplify-order-response`
+and analyze. Uploaded repos are extracted into `.difflens/uploads/` on the
+server (per-file upload cap: 150MB, to bound memory use during extraction).
 
 ### Environment variables
 

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>DiffLens — Review by Intent</title>
 <link rel="stylesheet" href="css/style.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2310141b' stroke='%234fc3f7' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%234fc3f7'/%3E%3C/svg%3E" />
 </head>
 <body>
 <header class="app-header">
@@ -18,13 +19,29 @@
 <div class="layout">
   <div class="side-col">
     <section class="panel">
-      <h2>1 · Select Repository</h2>
-      <div class="field">
-        <label for="repoPath">Local repository path</label>
-        <input id="repoPath" type="text" placeholder="/path/to/repo" value="./demo-repo" />
+      <h2>1 · Load Repository</h2>
+      <p style="color:var(--text-2);font-size:var(--fs-small);margin-top:0">
+        Choose the repository folder or upload a .zip of it (both include
+        its <code>.git</code> history, which DiffLens needs to compute a diff).
+      </p>
+      <div class="field-row">
+        <button id="chooseFolderBtn" class="primary">Choose Repository Folder</button>
+        <button id="chooseZipBtn">Upload .zip</button>
       </div>
-      <button id="validateBtn">Validate</button>
+      <input id="folderInput" type="file" webkitdirectory directory multiple class="hidden" />
+      <input id="zipInput" type="file" accept=".zip,application/zip" class="hidden" />
       <div id="repoStatus" class="status-line"></div>
+
+      <details style="margin-top:10px">
+        <summary style="color:var(--text-2);font-size:var(--fs-small);cursor:pointer">
+          Advanced: use a path already on this server
+        </summary>
+        <div class="field" style="margin-top:8px">
+          <label for="repoPath">Server-side repository path</label>
+          <input id="repoPath" type="text" placeholder="/path/to/repo" value="./demo-repo" />
+        </div>
+        <button id="loadPathBtn" class="small">Load Path</button>
+      </details>
     </section>
 
     <section class="panel" id="compareSection" style="display:none">

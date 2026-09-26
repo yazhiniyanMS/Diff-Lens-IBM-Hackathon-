@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import path from "node:path";
 import * as git from "../lib/git.js";
 import { runAnalysis } from "../lib/reviewBrief.js";
@@ -8,9 +9,15 @@ import { validatePatch, PatchValidationError } from "../lib/patch/validator.js";
 import { applyPatch } from "../lib/patch/apply.js";
 import { runVerification } from "../lib/verify.js";
 import { writeEvidenceDocs } from "../lib/evidenceWriter.js";
+import { newUploadDir, writeUploadedFiles, extractZip, resolveEffectiveRoot } from "../lib/uploadStore.js";
 
 const router = Router();
 const store = getStore();
+// Generous but bounded: a repo's packed .git objects can be a single large
+// file even when the working tree is small, so the per-file cap is well
+// above typical source files while still refusing to buffer something huge
+// into memory.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024, files: 8000 } });
 
 function asyncRoute(fn) {
   return (req, res, next) => fn(req, res, next).catch(next);
@@ -22,21 +29,78 @@ router.get("/health", (req, res) => {
 
 // --- Repository selection -------------------------------------------------
 
+/** Shared by /repos/validate and the two upload routes below. */
+async function describeRepo(repoPath) {
+  if (!git.isLikelyGitRepo(repoPath)) {
+    return { valid: false, reason: "Not a git repository (no .git folder found in what was selected)." };
+  }
+  await git.assertGitRepo(repoPath);
+  const [name, branches, currentRef] = await Promise.all([
+    git.getRepoName(repoPath),
+    git.listBranches(repoPath),
+    git.getCurrentRef(repoPath),
+  ]);
+  return {
+    valid: true,
+    name,
+    branches,
+    currentRef,
+    refOptions: [git.REF.WORKING_TREE, git.REF.STAGED, ...branches],
+    repoPath,
+  };
+}
+
 router.post(
   "/repos/validate",
   asyncRoute(async (req, res) => {
     const { repoPath } = req.body;
     if (!repoPath) return res.status(400).json({ error: "repoPath is required" });
-    if (!git.isLikelyGitRepo(repoPath)) {
-      return res.status(200).json({ valid: false, reason: "Not a git repository (no .git directory found)." });
+    res.json(await describeRepo(repoPath));
+  })
+);
+
+// Folder picker upload: the browser sends every file under the chosen
+// directory (Chromium-based browsers include dotfiles/dotdirs, so a real
+// .git directory comes through) plus a matching "relativePaths" JSON array
+// so the original tree structure can be reconstructed server-side.
+router.post(
+  "/repos/upload-folder",
+  upload.array("files"),
+  asyncRoute(async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No files received." });
     }
-    await git.assertGitRepo(repoPath);
-    const [name, branches, currentRef] = await Promise.all([
-      git.getRepoName(repoPath),
-      git.listBranches(repoPath),
-      git.getCurrentRef(repoPath),
-    ]);
-    res.json({ valid: true, name, branches, currentRef, refOptions: [git.REF.WORKING_TREE, git.REF.STAGED, ...branches] });
+    let relativePaths;
+    try {
+      relativePaths = JSON.parse(req.body.relativePaths || "[]");
+    } catch {
+      return res.status(400).json({ error: "relativePaths must be a JSON array." });
+    }
+    const dir = newUploadDir();
+    writeUploadedFiles(dir, req.files, relativePaths);
+    const repoPath = resolveEffectiveRoot(dir);
+    res.json(await describeRepo(repoPath));
+  })
+);
+
+// Zip upload: the browser sends one .zip file, which is extracted
+// server-side into a fresh directory.
+router.post(
+  "/repos/upload-zip",
+  upload.single("archive"),
+  asyncRoute(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No archive received." });
+    const dir = newUploadDir();
+    extractZip(dir, req.file.buffer);
+    const repoPath = resolveEffectiveRoot(dir);
+    const info = await describeRepo(repoPath);
+    // A zip with no single wrapper folder leaves repoPath pointing at the
+    // randomly-named upload dir; prefer the archive's own filename for
+    // display in that case.
+    if (info.valid && repoPath === dir) {
+      info.name = req.file.originalname.replace(/\.zip$/i, "") || info.name;
+    }
+    res.json(info);
   })
 );
 

@@ -19,30 +19,86 @@
     return body;
   }
 
+  async function apiUpload(path, formData) {
+    const res = await fetch(`/api${path}`, { method: "POST", body: formData });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Upload failed (${res.status})`);
+    return body;
+  }
+
   function setStatus(el, text, kind) {
     el.textContent = text;
     el.classList.remove("error", "ok");
     if (kind) el.classList.add(kind);
   }
 
-  // --- Repo validate --------------------------------------------------------
+  // --- Repo loading -----------------------------------------------------------
 
-  $("#validateBtn").addEventListener("click", async () => {
+  function onRepoLoaded(info) {
+    const statusEl = $("#repoStatus");
+    if (!info.valid) {
+      setStatus(statusEl, info.reason || "Not a valid git repository.", "error");
+      return;
+    }
+    state.repoPath = info.repoPath || $("#repoPath").value.trim();
+    state.repoInfo = info;
+    setStatus(statusEl, `✓ ${info.name} · current: ${info.currentRef}`, "ok");
+    populateRefSelects(info);
+    $("#compareSection").style.display = "block";
+    $("#analyzeSection").style.display = "none";
+    $("#diffPanel").classList.add("hidden");
+  }
+
+  $("#chooseFolderBtn").addEventListener("click", () => $("#folderInput").click());
+  $("#chooseZipBtn").addEventListener("click", () => $("#zipInput").click());
+
+  $("#folderInput").addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []);
+    const statusEl = $("#repoStatus");
+    if (!files.length) return;
+    setStatus(statusEl, `Uploading ${files.length} file(s)…`);
+    try {
+      const formData = new FormData();
+      const relativePaths = [];
+      for (const file of files) {
+        formData.append("files", file);
+        relativePaths.push(file.webkitRelativePath || file.name);
+      }
+      formData.append("relativePaths", JSON.stringify(relativePaths));
+      const info = await apiUpload("/repos/upload-folder", formData);
+      onRepoLoaded(info);
+    } catch (err) {
+      setStatus(statusEl, err.message, "error");
+    } finally {
+      e.target.value = "";
+    }
+  });
+
+  $("#zipInput").addEventListener("change", async (e) => {
+    const file = (e.target.files || [])[0];
+    const statusEl = $("#repoStatus");
+    if (!file) return;
+    setStatus(statusEl, `Uploading ${file.name}…`);
+    try {
+      const formData = new FormData();
+      formData.append("archive", file);
+      const info = await apiUpload("/repos/upload-zip", formData);
+      onRepoLoaded(info);
+    } catch (err) {
+      setStatus(statusEl, err.message, "error");
+    } finally {
+      e.target.value = "";
+    }
+  });
+
+  $("#loadPathBtn").addEventListener("click", async () => {
     const repoPath = $("#repoPath").value.trim();
     const statusEl = $("#repoStatus");
     if (!repoPath) return setStatus(statusEl, "Enter a repository path.", "error");
-    setStatus(statusEl, "Validating…");
+    setStatus(statusEl, "Loading…");
     try {
       const info = await api("/repos/validate", { method: "POST", body: JSON.stringify({ repoPath }) });
-      if (!info.valid) return setStatus(statusEl, info.reason || "Not a valid git repository.", "error");
-      state.repoPath = repoPath;
-      state.repoInfo = info;
-      setStatus(statusEl, `✓ ${info.name} · current: ${info.currentRef}`, "ok");
-      populateRefSelects(info);
-      $("#compareSection").style.display = "block";
-      $("#analyzeSection").style.display = "none";
-      $("#diffPanel").classList.add("hidden");
-      $("#providerHint")?.remove();
+      onRepoLoaded(info);
     } catch (err) {
       setStatus(statusEl, err.message, "error");
     }
