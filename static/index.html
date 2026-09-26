@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DiffLens — Review by Intent (static)</title>
+<link rel="stylesheet" href="css/style.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2310141b' stroke='%234fc3f7' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%234fc3f7'/%3E%3C/svg%3E" />
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem("difflens-theme");
+      if (saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-mark">Diff<span>Lens</span></div>
+    <div class="tagline">Review Pull Requests by Intent, Not Just by Lines Changed. <em>(static build — runs entirely in this browser tab)</em></div>
+  </div>
+  <div class="header-actions">
+    <button id="themeToggleBtn" class="small ghost" type="button" aria-pressed="false">
+      <span id="themeToggleIcon" aria-hidden="true">☾</span>
+      <span id="themeToggleLabel">Dark</span>
+    </button>
+    <div id="providerPill" class="provider-pill">provider: mock-heuristic</div>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="side-col">
+    <section class="panel">
+      <h2>1 · Load Repository</h2>
+      <p style="color:var(--text-2);font-size:var(--fs-small);margin-top:0">
+        Everything runs in this tab — no server, no upload. Choose a folder,
+        a .zip, or a public GitHub URL (cloned via a CORS proxy, in-browser).
+      </p>
+      <div class="field-row">
+        <button id="chooseFolderBtn" class="primary">Choose Repository Folder</button>
+        <button id="chooseZipBtn">Upload .zip</button>
+      </div>
+      <input id="folderInput" type="file" webkitdirectory directory multiple class="hidden" />
+      <input id="zipInput" type="file" accept=".zip,application/zip" class="hidden" />
+
+      <div class="field" style="margin-top:12px">
+        <label for="githubUrl">...or load from a GitHub URL (public repos)</label>
+        <div class="field-row">
+          <input id="githubUrl" type="text" placeholder="https://github.com/owner/repo" />
+          <button id="loadGithubBtn" style="flex:0 0 auto">Load</button>
+        </div>
+      </div>
+
+      <div id="repoStatus" class="status-line"></div>
+      <div id="writabilityNote" class="status-line"></div>
+    </section>
+
+    <section class="panel" id="compareSection" style="display:none">
+      <h2>2 · Choose Comparison</h2>
+      <div class="field">
+        <label for="baseRef">Base</label>
+        <select id="baseRef"></select>
+      </div>
+      <div class="field">
+        <label for="headRef">Head (comparison target)</label>
+        <select id="headRef"></select>
+      </div>
+      <button id="loadDiffBtn">Inspect Raw Diff</button>
+      <div id="diffStatus" class="status-line"></div>
+    </section>
+
+    <section class="panel" id="analyzeSection" style="display:none">
+      <h2>3 · Run Analysis</h2>
+      <p style="color:var(--text-2);font-size:var(--fs-small);margin-top:0">
+        The diff above looks small. DiffLens will trace it against tests,
+        docs, schemas, and consumers across the repository.
+      </p>
+      <button id="analyzeBtn" class="primary">Analyze with DiffLens</button>
+      <div id="analyzeStatus" class="status-line"></div>
+    </section>
+
+    <section class="panel hidden" id="summarySection">
+      <h2>4 · Reviewer Summary</h2>
+      <button id="genSummaryBtn">Generate Reviewer Summary</button>
+      <button id="genEvidenceBtn" class="ghost small" style="margin-top:6px">Download Evidence Docs (.zip)</button>
+      <div id="evidenceStatus" class="status-line"></div>
+      <pre id="summaryBox" class="reviewer-summary-box hidden" style="margin-top:10px"></pre>
+    </section>
+
+    <details class="panel" id="aiSettingsPanel" style="margin-top:16px">
+      <summary style="cursor:pointer"><strong style="font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2)">AI Provider Settings</strong></summary>
+      <p style="color:var(--text-2);font-size:var(--fs-small)">
+        Default (Mock) needs nothing and runs fully offline. A real provider
+        calls a public API directly from this browser using a key you enter
+        below — it's stored only in this browser's localStorage and sent
+        only to the host you pick, never anywhere else.
+      </p>
+      <div class="field">
+        <label for="aiKind">Provider</label>
+        <select id="aiKind">
+          <option value="mock">Mock (deterministic heuristic, no network)</option>
+          <option value="huggingface">Hugging Face (free token, CORS-enabled)</option>
+          <option value="openai-compatible">Custom OpenAI-compatible endpoint</option>
+        </select>
+      </div>
+      <div class="field" id="aiBaseUrlField" style="display:none">
+        <label for="aiBaseUrl">Base URL</label>
+        <input id="aiBaseUrl" type="text" placeholder="https://router.huggingface.co/v1" />
+      </div>
+      <div class="field" id="aiKeyField" style="display:none">
+        <label for="aiApiKey">API key</label>
+        <input id="aiApiKey" type="password" placeholder="hf_..." />
+      </div>
+      <div class="field" id="aiModelField" style="display:none">
+        <label for="aiModel">Model</label>
+        <input id="aiModel" type="text" placeholder="Qwen/Qwen2.5-Coder-1.5B-Instruct" />
+      </div>
+      <button id="saveAiSettingsBtn" class="small">Save</button>
+      <div id="aiSettingsStatus" class="status-line"></div>
+    </details>
+  </div>
+
+  <div class="main-col">
+    <section class="panel hidden" id="diffPanel">
+      <h2>Raw Diff</h2>
+      <div id="diffView" class="diff-view"></div>
+    </section>
+
+    <section class="panel" id="radarPanel" style="display:none">
+      <h2>Review Radar — Blast Radius</h2>
+      <div class="radar-wrap">
+        <div id="radarSvgWrap"></div>
+        <div class="radar-legend" id="radarLegend"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="briefPanel" style="display:none">
+      <h2>Intent-Aware Review Brief</h2>
+      <div id="briefRoot"></div>
+    </section>
+
+    <div class="empty-state" id="emptyState">
+      Select a repository, choose what to compare, and analyze a change to
+      see its Review Brief and Review Radar here — entirely in this tab.
+    </div>
+  </div>
+</div>
+
+<footer class="app-footer">
+  DiffLens (static build) · IBM Hackathon demo · runs entirely client-side — see
+  <a href="../docs/static-build.md">docs/static-build.md</a> for the architecture and trade-offs
+</footer>
+
+<div id="modalRoot"></div>
+
+<script src="vendor/diff.js"></script>
+<script src="js/radar.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

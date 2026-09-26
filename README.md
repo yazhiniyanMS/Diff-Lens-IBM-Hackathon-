@@ -11,6 +11,11 @@ context, hands that evidence to an AI reasoning layer, and produces a
 structured **Intent-Aware Review Brief** plus a visual **Review Radar** —
 not another stream of generic AI comments.
 
+**Two builds, same product:** [`server/` + `public/`](#setup) (the full
+feature set, needs Node running) and [`static/`](docs/static-build.md) (zero
+server, opens as a plain page, deployable to GitHub Pages as-is). See
+[Setup](#setup) for which one to use.
+
 ## The problem, concretely
 
 A reviewer looks at a 2-file, 8-line diff and it looks fine. What they don't
@@ -234,15 +239,21 @@ bash scripts/init-sample-app.sh
 
 ## Setup
 
-> **This is a full-stack app, not a static page.** It needs the Node/Express
-> server in `server/` actually running (for git commands, uploads, and
-> analysis) — opening `public/index.html` directly, or hosting only the
-> `public/` folder on a static host, **will not and cannot work**: the page
-> talks to `/api/*`, which only exists when the Node process is running.
-> **This includes GitHub Pages** — enabling Pages on this repo serves the
-> raw files with no backend behind them at all; there is no configuration
-> that makes that work, because Pages cannot run a Node server. Either run
-> it locally (below) or deploy it somewhere that runs Node (next section).
+There are two independent builds in this repo — pick based on what you need:
+
+| | `server/` + `public/` (below) | [`static/`](docs/static-build.md) |
+| --- | --- | --- |
+| Needs a server? | Yes (Node/Express) | **No — open `static/index.html` directly, or deploy to GitHub Pages as-is** |
+| Git engine | real `git` CLI | isomorphic-git, runs entirely in the browser tab |
+| AI providers | mock, Ollama, Hugging Face, OpenRouter, Groq, Bob | mock, or a browser-side call to Hugging Face / a custom endpoint |
+| Verification (test/lint) | yes, runs the repo's own commands | not available (a static page can't execute a repo's toolchain) |
+| Best for | the full feature set, a hosted demo URL | GitHub Pages, zero setup, nothing to run or deploy |
+
+The rest of this section is the `server/`+`public/` build. **If you want
+GitHub Pages specifically, skip to [`static/`](docs/static-build.md)
+instead** — the full-stack build genuinely cannot run there (a static host
+has no way to execute the Node process `/api/*` depends on), which is exactly
+what the static build exists to solve properly rather than work around.
 
 ```bash
 npm install
