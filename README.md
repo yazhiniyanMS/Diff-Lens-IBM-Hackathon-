@@ -174,18 +174,27 @@ npm run setup:demo   # optional: re-provisions demo-repo/node_modules if needed
 npm start             # DiffLens on http://localhost:5175
 ```
 
-Then open the app and load a repository one of three ways:
+Then open the app and load a repository one of four ways:
 
 - **Choose Repository Folder** — picks a local folder via the browser's
   native directory picker and uploads it (Chromium-based browsers include
   hidden files/folders in that selection, so `.git` comes along).
+  `node_modules`, `dist`, `build`, `.next`, `.cache`, `venv`, `__pycache__`,
+  `target`, and `vendor` are skipped automatically before upload — this is
+  what makes uploading a real project (not just the small demo repo)
+  actually work, instead of hitting a file-count limit trying to upload
+  someone's entire `node_modules`.
 - **Upload .zip** — upload a zip of the repository (`.git` included).
+- **Load from a GitHub URL** — paste a public repo URL (e.g.
+  `https://github.com/owner/repo`) and DiffLens clones it server-side
+  (shallow, last ~100 commits across all branches). Public/unauthenticated
+  repos only; only `http://`/`https://` URLs are accepted.
 - **Advanced: use a path already on this server** — for running DiffLens
   and the repo on the same machine, e.g. local development
   (`./demo-repo` works out of the box).
 
 Either way, once loaded, choose `main` → `feature/simplify-order-response`
-and analyze. Uploaded repos are extracted into `.difflens/uploads/` on the
+and analyze. Uploaded/cloned repos land in `.difflens/uploads/` on the
 server (per-file upload cap: 150MB, to bound memory use during extraction).
 
 ### Environment variables
