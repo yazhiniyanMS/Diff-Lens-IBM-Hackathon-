@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DiffLens — Review by Intent</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-mark">Diff<span>Lens</span></div>
+    <div class="tagline">Review Pull Requests by Intent, Not Just by Lines Changed.</div>
+  </div>
+  <div id="providerPill" class="provider-pill">provider: —</div>
+</header>
+
+<div class="layout">
+  <div class="side-col">
+    <section class="panel">
+      <h2>1 · Select Repository</h2>
+      <div class="field">
+        <label for="repoPath">Local repository path</label>
+        <input id="repoPath" type="text" placeholder="/path/to/repo" value="./demo-repo" />
+      </div>
+      <button id="validateBtn">Validate</button>
+      <div id="repoStatus" class="status-line"></div>
+    </section>
+
+    <section class="panel" id="compareSection" style="display:none">
+      <h2>2 · Choose Comparison</h2>
+      <div class="field">
+        <label for="baseRef">Base</label>
+        <select id="baseRef"></select>
+      </div>
+      <div class="field">
+        <label for="headRef">Head (comparison target)</label>
+        <select id="headRef"></select>
+      </div>
+      <button id="loadDiffBtn">Inspect Raw Diff</button>
+      <div id="diffStatus" class="status-line"></div>
+    </section>
+
+    <section class="panel" id="analyzeSection" style="display:none">
+      <h2>3 · Run Analysis</h2>
+      <p style="color:var(--text-2);font-size:12.5px;margin-top:0">
+        The diff above looks small. DiffLens will trace it against tests,
+        docs, schemas, and consumers across the repository.
+      </p>
+      <button id="analyzeBtn" class="primary">Analyze with DiffLens</button>
+      <div id="analyzeStatus" class="status-line"></div>
+    </section>
+
+    <section class="panel hidden" id="summarySection">
+      <h2>4 · Reviewer Summary</h2>
+      <button id="genSummaryBtn">Generate Reviewer Summary</button>
+      <button id="genEvidenceBtn" class="ghost small" style="margin-top:6px">Write Evidence Docs</button>
+      <div id="evidenceStatus" class="status-line"></div>
+      <pre id="summaryBox" class="reviewer-summary-box hidden" style="margin-top:10px"></pre>
+    </section>
+  </div>
+
+  <div class="main-col">
+    <section class="panel hidden" id="diffPanel">
+      <h2>Raw Diff</h2>
+      <div id="diffView" class="diff-view"></div>
+    </section>
+
+    <section class="panel" id="radarPanel" style="display:none">
+      <h2>Review Radar — Blast Radius</h2>
+      <div class="radar-wrap">
+        <div id="radarSvgWrap"></div>
+        <div class="radar-legend" id="radarLegend"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="briefPanel" style="display:none">
+      <h2>Intent-Aware Review Brief</h2>
+      <div id="briefRoot"></div>
+    </section>
+
+    <div class="empty-state" id="emptyState">
+      Select a repository, choose what to compare, and analyze a change to
+      see its Review Brief and Review Radar here.
+    </div>
+  </div>
+</div>
+
+<footer class="app-footer">DiffLens · IBM Hackathon demo · deterministic repo analysis + AI-provider reasoning</footer>
+
+<div id="modalRoot"></div>
+
+<script src="js/radar.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
