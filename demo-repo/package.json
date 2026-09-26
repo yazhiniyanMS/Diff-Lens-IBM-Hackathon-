@@ -1,0 +1,13 @@
+{
+  "name": "orders-demo",
+  "version": "1.0.0",
+  "description": "DiffLens demo application - Orders service",
+  "type": "module",
+  "scripts": {
+    "start": "node backend/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

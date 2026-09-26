@@ -1,0 +1,21 @@
+{
+  "name": "difflens",
+  "version": "0.1.0",
+  "description": "DiffLens - Review Pull Requests by Intent, Not Just by Lines Changed.",
+  "type": "module",
+  "private": true,
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test": "node --test tests/*.test.js",
+    "setup:demo": "bash scripts/setup-demo-repo.sh"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "zod": "^3.23.8"
+  }
+}
