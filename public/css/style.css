@@ -474,3 +474,66 @@ footer.app-footer { text-align: center; color: var(--text-2); font-size: var(--f
 @media (max-width: 640px) {
   .hero { padding: 50px 18px 40px; }
 }
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.reveal.revealed { opacity: 1; transform: translateY(0); }
+
+.hero-illustration {
+  position: relative;
+  z-index: 1;
+  max-width: 460px;
+  margin: 40px auto 0;
+}
+.code-window {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+  animation: floatSlow 6s ease-in-out infinite;
+}
+.code-window-bar {
+  display: flex;
+  gap: 6px;
+  padding: 9px 12px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+.code-window-dot { width: 10px; height: 10px; border-radius: 50%; }
+.code-window-dot:nth-child(1) { background: #f6879b; }
+.code-window-dot:nth-child(2) { background: #f6c250; }
+.code-window-dot:nth-child(3) { background: #52e3a0; }
+.code-window-body {
+  padding: 16px 18px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  text-align: left;
+  color: var(--text-1);
+}
+.code-window-body .kw { color: var(--accent-2); }
+.code-window-body .fn { color: var(--warn); }
+.code-window-body .str { color: var(--ok); }
+.code-window-body .cm { color: var(--text-2); font-style: italic; }
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.floating-symbols { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.floating-symbols span {
+  position: absolute;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--accent-2);
+  opacity: 0.12;
+  animation: driftSlow 12s ease-in-out infinite;
+}
+.floating-symbols span:nth-child(1) { top: 12%; left: 8%; font-size: 46px; animation-delay: 0s; }
+.floating-symbols span:nth-child(2) { top: 65%; left: 14%; font-size: 30px; animation-delay: 2s; }
+.floating-symbols span:nth-child(3) { top: 20%; left: 88%; font-size: 40px; animation-delay: 1s; }
+.floating-symbols span:nth-child(4) { top: 70%; left: 84%; font-size: 26px; animation-delay: 3s; }
+@keyframes driftSlow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(4deg); }
+}
