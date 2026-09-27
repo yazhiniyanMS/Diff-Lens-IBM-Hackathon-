@@ -9,7 +9,7 @@
 // color alone" and interfaces must work keyboard-only).
 
 const RING_LABELS = {
-  apis: "APIs / Consumers",
+  apis: "APIs & consumers",
   services: "Services",
   schemas: "Schemas",
   tests: "Tests",
@@ -28,7 +28,7 @@ const STATUS_GLYPH = {
 const STATUS_LABEL = {
   changed: "Changed",
   affected: "Affected",
-  potentially_affected: "Potentially affected",
+  potentially_affected: "May be affected",
   risk: "Needs attention",
   verified: "Verified",
 };
@@ -39,20 +39,27 @@ function svgEl(tag, attrs = {}) {
   return el;
 }
 
-function makeNode({ x, y, radius, statusClass, label, statusKey, onActivate }) {
+function makeNode({ x, y, radius, statusClass, label, statusKey, file, onActivate, delay = 0 }) {
   const g = svgEl("g", {
     class: `radar-node ${statusClass}`,
     transform: `translate(${x},${y})`,
     tabindex: "0",
     role: "button",
     "aria-label": `${label}: ${STATUS_LABEL[statusKey] || statusKey}`,
+    "data-file": file || "",
+    style: `animation-delay: ${delay}ms`,
   });
   const title = svgEl("title");
   title.textContent = `${label} — ${STATUS_LABEL[statusKey] || statusKey}`;
   g.appendChild(title);
+  // Comfortable hit area covering the node and its label.
+  const hitW = Math.max(radius * 2 + 16, label.length * 6.4 + 12);
+  g.appendChild(svgEl("rect", { class: "hit", x: -hitW / 2, y: -radius - 8, width: hitW, height: radius * 2 + 30, rx: 8 }));
   g.appendChild(svgEl("circle", { r: radius }));
   const glyph = STATUS_GLYPH[statusKey];
-  if (glyph) {
+  if (statusKey === "affected") {
+    g.appendChild(svgEl("circle", { r: Math.max(radius / 3, 2), class: "dot" }));
+  } else if (glyph) {
     g.appendChild(svgEl("text", { class: "glyph", "font-size": radius, dy: "0.5" })).textContent = glyph;
   }
   const t = svgEl("text", { y: radius + 13, "text-anchor": "middle" });
@@ -87,7 +94,7 @@ function renderRadar(container, radar, onNodeClick) {
     height: size,
     viewBox: `0 0 ${size} ${size}`,
     role: "img",
-    "aria-label": `Review Radar: ${radar.center.length} changed file(s) and ${radar.nodes.length} related node(s) across ${rings.length} categories.`,
+    "aria-label": `Blast radius: ${radar.center.length} changed ${radar.center.length === 1 ? "file" : "files"} reaching ${radar.nodes.length} related ${radar.nodes.length === 1 ? "file" : "files"}.`,
   });
 
   rings.forEach((ring, i) => {
@@ -123,8 +130,11 @@ function renderRadar(container, radar, onNodeClick) {
       statusClass: "changed",
       statusKey: "changed",
       label: c.label,
+      file: c.file,
+      delay: i * 60,
       onActivate: () => onNodeClick({ kind: "changed", file: c.file }),
     });
+    node.insertBefore(svgEl("circle", { r: 20, class: "radar-node-halo" }), node.querySelector("circle"));
     nodeLayer.appendChild(node);
   });
   const anchor = centerPositions[0] || { x: cx, y: cy };
@@ -138,7 +148,8 @@ function renderRadar(container, radar, onNodeClick) {
       const x = cx + r * Math.cos(angle);
       const y = cy + r * Math.sin(angle);
 
-      edgeLayer.appendChild(svgEl("line", { x1: anchor.x, y1: anchor.y, x2: x, y2: y, class: "radar-edge" }));
+      const nodeDelay = 200 + ringIdx * 120 + i * 40;
+      edgeLayer.appendChild(svgEl("line", { x1: anchor.x, y1: anchor.y, x2: x, y2: y, class: "radar-edge", style: `animation-delay: ${nodeDelay - 150}ms` }));
 
       const radius = n.status === "risk" ? 10 : 8;
       const node = makeNode({
@@ -148,6 +159,8 @@ function renderRadar(container, radar, onNodeClick) {
         statusClass: n.status,
         statusKey: n.status,
         label: n.label,
+        file: n.file,
+        delay: nodeDelay,
         onActivate: () => onNodeClick({ kind: "context", node: n }),
       });
       nodeLayer.appendChild(node);

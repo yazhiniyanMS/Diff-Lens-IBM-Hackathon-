@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light dark" />
 <title>DiffLens</title>
+<meta property="og:title" content="DiffLens — Review pull requests by intent" />
+<meta property="og:description" content="Traces a PR through your tests, docs, and API consumers, then hands you a clear merge verdict." />
+<meta name="description" content="See everything a pull request affects before you merge it. Runs entirely in your browser." />
 <link rel="stylesheet" href="css/style.css" />
 <script>
   try {
@@ -12,203 +15,171 @@
     if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
   } catch (e) {}
 </script>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230071e3'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='white' stroke-width='2' opacity='.55'/%3E%3Ccircle cx='16' cy='16' r='4' fill='white'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230066cc'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='white' stroke-width='2' opacity='.5'/%3E%3Ccircle cx='16' cy='16' r='4' fill='white'/%3E%3C/svg%3E" />
 </head>
 <body>
+<a class="skip-link" href="#appView">Skip to content</a>
+
 <header class="app-header">
-  <button type="button" class="brand brand-home" id="homeBtn" aria-label="DiffLens home">
-    <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0071e3"/><circle cx="16" cy="16" r="9" fill="none" stroke="#fff" stroke-width="2" opacity=".55"/><circle cx="16" cy="16" r="4" fill="#fff"/></svg>
-    <div class="brand-mark">Diff<span>Lens</span></div>
-    <span class="tagline">Review pull requests by intent, not just lines changed</span>
+  <button type="button" class="brand" id="homeBtn" aria-label="DiffLens home">
+    <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><circle cx="16" cy="16" r="9" fill="none" stroke="#fff" stroke-width="2" opacity=".5"/><circle cx="16" cy="16" r="4" fill="#fff"/></svg>
+    <span class="brand-name">DiffLens</span>
   </button>
-  <div class="header-actions">
-    <div id="providerPill" class="provider-pill app-only">provider: mock-heuristic</div>
-    <button type="button" class="small app-only" id="tutorialBtn">Tutorial</button>
+  <nav class="header-actions" aria-label="App">
     <div class="theme-switch" role="radiogroup" aria-label="Appearance">
-      <button type="button" role="radio" data-theme-choice="system" aria-checked="true" title="Match system appearance">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 14h5M8 11.5V14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-        <span>System</span>
-      </button>
-      <button type="button" role="radio" data-theme-choice="light" aria-checked="false" title="Light appearance">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9L13 13M3 13l1.1-1.1M11.9 4.1L13 3"/></g></svg>
-        <span>Light</span>
-      </button>
-      <button type="button" role="radio" data-theme-choice="dark" aria-checked="false" title="Dark appearance">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 10.2A6 6 0 0 1 5.8 2.5a6 6 0 1 0 7.7 7.7z" fill="currentColor"/></svg>
-        <span>Dark</span>
-      </button>
+      <button type="button" role="radio" data-theme-choice="system" aria-checked="true" title="Match system"><svg data-icon="system" aria-hidden="true"></svg><span>System</span></button>
+      <button type="button" role="radio" data-theme-choice="light" aria-checked="false" title="Light"><svg data-icon="sun" aria-hidden="true"></svg><span>Light</span></button>
+      <button type="button" role="radio" data-theme-choice="dark" aria-checked="false" title="Dark"><svg data-icon="moon" aria-hidden="true"></svg><span>Dark</span></button>
     </div>
-  </div>
+    <div class="menu-wrap">
+      <button type="button" class="icon-btn" id="helpBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="helpMenu" title="Help">
+        <svg data-icon="help" aria-hidden="true"></svg><span class="visually-hidden">Help</span>
+      </button>
+      <div class="menu hidden" id="helpMenu" role="menu" aria-label="Help">
+        <button type="button" role="menuitem" data-help="tour">Take the Tour</button>
+        <button type="button" role="menuitem" data-help="shortcuts">Keyboard Shortcuts<kbd>?</kbd></button>
+      </div>
+    </div>
+    <button type="button" class="icon-btn" id="settingsBtn" title="Settings">
+      <svg data-icon="settings" aria-hidden="true"></svg><span class="visually-hidden">Settings</span>
+    </button>
+  </nav>
 </header>
 
+<!-- Landing ----------------------------------------------------------------- -->
 <main class="landing" id="landing">
   <section class="hero">
-    <svg class="hero-mark" viewBox="0 0 120 120" aria-hidden="true">
-      <circle cx="60" cy="60" r="56" fill="none" stroke="currentColor" stroke-opacity=".12" stroke-width="2"/>
-      <circle cx="60" cy="60" r="38" fill="none" stroke="currentColor" stroke-opacity=".2" stroke-width="2" stroke-dasharray="4 7"/>
-      <circle cx="60" cy="60" r="20" fill="none" stroke="#0071e3" stroke-opacity=".35" stroke-width="2"/>
-      <circle cx="60" cy="60" r="9" fill="#0071e3"/>
-      <circle cx="98" cy="46" r="5" class="hm-risk"/>
-      <circle cx="30" cy="84" r="5" class="hm-warn"/>
-      <circle cx="44" cy="24" r="4" class="hm-info"/>
-    </svg>
-    <p class="hero-eyebrow">DiffLens</p>
-    <h1 class="hero-title">Review the change,<br />not just the lines.</h1>
-    <p class="hero-sub">DiffLens traces a pull request through your tests, docs, and API consumers, then hands you a clear merge verdict. Everything runs in your browser — no server, no upload.</p>
+    <h1 class="hero-title">See everything a pull request affects — before you merge it.</h1>
+    <p class="hero-sub">DiffLens follows a change through your tests, docs, and API consumers, and tells you whether it's safe to merge. It runs entirely in your browser; your code never leaves this tab.</p>
     <div class="hero-actions">
-      <button type="button" class="primary large" id="getStartedBtn">Get Started</button>
-      <a class="hero-link" href="#features">How it works</a>
+      <button type="button" class="btn primary large" id="getStartedBtn">Get Started</button>
     </div>
   </section>
 
-  <section class="features" id="features" aria-label="How it works">
+  <figure class="hero-preview" aria-label="Example verdict">
+    <div class="preview-verdict">
+      <span class="verdict-mark block" aria-hidden="true">!</span>
+      <div>
+        <p class="preview-title">Not ready to merge</p>
+        <p class="preview-sub">3 high-risk findings — a renamed field still used by <code class="tok">OrderCard.js</code>, its contract test, and the API docs.</p>
+      </div>
+    </div>
+  </figure>
+
+  <section class="features" aria-label="How it works">
     <article class="feature">
-      <div class="feature-num" aria-hidden="true">1</div>
-      <h2>Load a repository</h2>
-      <p>Pick a folder or a .zip of any git repository, or try the built-in sample. Files never leave this tab.</p>
+      <h2>Open a repository</h2>
+      <p>Drop in a folder or a .zip. DiffLens picks the branches to compare for you.</p>
     </article>
     <article class="feature">
-      <div class="feature-num" aria-hidden="true">2</div>
-      <h2>See the blast radius</h2>
-      <p>DiffLens maps every file the change reaches — including the ones the author forgot to update.</p>
+      <h2>See what it touches</h2>
+      <p>Every file the change reaches, including the ones the author forgot to update.</p>
     </article>
     <article class="feature">
-      <div class="feature-num" aria-hidden="true">3</div>
-      <h2>Share a verdict</h2>
-      <p>Triage the findings, apply suggested fixes, and copy a ready-to-paste review summary.</p>
+      <h2>Share a clear answer</h2>
+      <p>A merge verdict and a ready-to-paste review, updated as you triage.</p>
     </article>
   </section>
 </main>
 
-<div class="layout hidden" id="appView">
-  <aside class="side-col" aria-label="Steps">
-    <section class="panel" id="loadPanel">
-      <h2><span class="step-num" aria-hidden="true">1</span>Load Repository</h2>
-      <p class="hint">Runs entirely in this browser tab. Nothing is uploaded.</p>
-      <div class="field-row">
-        <button id="chooseFolderBtn" class="primary">Choose Folder…</button>
-        <button id="chooseZipBtn">Upload .zip…</button>
-      </div>
-      <button id="sampleBtn" class="ghost block sample-btn">Try the Sample Repository</button>
-      <input id="folderInput" type="file" webkitdirectory directory multiple class="hidden" />
-      <input id="zipInput" type="file" accept=".zip,application/zip" class="hidden" />
+<!-- App --------------------------------------------------------------------- -->
+<main class="app hidden" id="appView" tabindex="-1">
 
-      <div class="or-divider">or from GitHub</div>
-      <div class="field">
-        <div class="field-row">
-          <input id="githubUrl" type="url" aria-label="Public GitHub repository URL" placeholder="https://github.com/owner/repo" />
-          <button id="loadGithubBtn" class="shrink">Load</button>
+  <!-- Open -->
+  <section class="open-view" id="openView" aria-labelledby="openTitle">
+    <h1 id="openTitle" class="page-title">Open a repository</h1>
+    <p class="page-sub">DiffLens compares its branches and shows everything the change affects.</p>
+
+    <div class="dropzone" id="dropzone">
+      <svg data-icon="folder" class="dropzone-icon" aria-hidden="true"></svg>
+      <p class="dropzone-title">Drop a project folder or .zip here</p>
+      <p class="dropzone-sub">It must contain a git repository. Nothing is uploaded.</p>
+      <div class="dropzone-actions">
+        <button type="button" class="btn primary" id="chooseFolderBtn">Choose Folder…</button>
+        <button type="button" class="btn" id="chooseZipBtn">Open .zip…</button>
+      </div>
+    </div>
+
+    <p class="open-status" id="openStatus" role="status" aria-live="polite"></p>
+
+    <div class="open-alt">
+      <button type="button" class="link-btn" id="sampleBtn">Try it with a sample repository</button>
+      <details class="github-disclosure" id="githubDisclosure">
+        <summary>Open from a GitHub URL</summary>
+        <form class="github-form" id="githubForm">
+          <input id="githubUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" aria-label="Public GitHub repository URL" placeholder="https://github.com/owner/repository" required />
+          <button type="submit" class="btn">Open</button>
+        </form>
+        <p class="fine-print">Public repositories only. Cloned in your browser through a public relay.</p>
+      </details>
+    </div>
+
+    <input id="folderInput" type="file" webkitdirectory directory multiple class="hidden" tabindex="-1" aria-hidden="true" />
+    <input id="zipInput" type="file" accept=".zip,application/zip" class="hidden" tabindex="-1" aria-hidden="true" />
+  </section>
+
+  <!-- Working -->
+  <section class="progress-view hidden" id="progressView" aria-labelledby="progressTitle" aria-live="polite">
+    <h1 class="page-title" id="progressTitle">Reviewing…</h1>
+    <ol class="stages" id="stages">
+      <li data-stage="read">Reading the repository</li>
+      <li data-stage="compare">Comparing branches</li>
+      <li data-stage="trace">Tracing what the change affects</li>
+    </ol>
+  </section>
+
+  <!-- Results -->
+  <section class="results-view hidden" id="resultsView" aria-labelledby="repoTitle">
+    <header class="report-head">
+      <div class="report-id">
+        <h1 class="repo-title" id="repoTitle"></h1>
+        <div class="compare-wrap">
+          <button type="button" class="compare-btn" id="compareBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="comparePopover">
+            <span id="compareLabel"></span><svg data-icon="chevron-down" aria-hidden="true"></svg>
+          </button>
+          <form class="popover hidden" id="comparePopover" role="dialog" aria-label="Change comparison">
+            <label for="baseRef">Merging into</label>
+            <select id="baseRef"></select>
+            <label for="headRef">Changes from</label>
+            <select id="headRef"></select>
+            <p class="field-note" id="compareNote" role="status"></p>
+            <div class="popover-actions">
+              <button type="button" class="btn" id="compareCancel">Cancel</button>
+              <button type="submit" class="btn primary" id="compareApply">Review</button>
+            </div>
+          </form>
         </div>
       </div>
-
-      <div id="repoStatus" class="status-line"></div>
-      <div id="writabilityNote" class="status-line"></div>
-    </section>
-
-    <section class="panel" id="compareSection" style="display:none">
-      <h2><span class="step-num" aria-hidden="true">2</span>Choose Comparison</h2>
-      <div class="field">
-        <label for="baseRef">Base</label>
-        <select id="baseRef"></select>
+      <div class="report-actions">
+        <button type="button" class="btn primary" id="copyReviewBtn"><svg data-icon="copy" aria-hidden="true"></svg>Copy Review</button>
+        <div class="menu-wrap">
+          <button type="button" class="icon-btn bordered" id="moreBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="moreMenu" title="More">
+            <svg data-icon="more" aria-hidden="true"></svg><span class="visually-hidden">More</span>
+          </button>
+          <div class="menu align-end hidden" id="moreMenu" role="menu" aria-label="More">
+            <button type="button" role="menuitem" id="downloadReviewBtn">Download Review (.md)</button>
+            <button type="button" role="menuitem" id="downloadEvidenceBtn">Download Evidence (.zip)</button>
+            <hr />
+            <button type="button" role="menuitem" id="openAnotherBtn">Open Another Repository</button>
+          </div>
+        </div>
       </div>
-      <div class="field">
-        <label for="headRef">Compare</label>
-        <select id="headRef"></select>
-      </div>
-      <button id="loadDiffBtn" class="block">Show Diff</button>
-      <div id="diffStatus" class="status-line"></div>
-    </section>
+    </header>
 
-    <section class="panel" id="analyzeSection" style="display:none">
-      <h2><span class="step-num" aria-hidden="true">3</span>Analyze Change</h2>
-      <p class="hint">Traces the diff against tests, docs, schemas, and consumers across the repository.</p>
-      <button id="analyzeBtn" class="primary block">Analyze Change</button>
-      <div id="analyzeStatus" class="status-line"></div>
-    </section>
-
-    <section class="panel hidden" id="summarySection">
-      <h2><span class="step-num" aria-hidden="true">4</span>Share the Review</h2>
-      <p class="hint">A merge verdict with every finding, ready to paste into the pull request.</p>
-      <button id="genSummaryBtn" class="primary block">Generate Review Summary</button>
-      <button id="genEvidenceBtn" class="ghost block" style="margin-top:8px">Download Evidence (.zip)</button>
-      <div id="evidenceStatus" class="status-line"></div>
-    </section>
-
-    <details class="panel settings-panel" id="aiSettingsPanel">
-      <summary>AI Provider</summary>
-      <p class="hint" style="margin-top:0">
-        The built-in analyzer works offline with no key. To use a hosted model,
-        enter its details below — the key stays in this browser and is sent only
-        to the host you choose.
-      </p>
-      <div class="field">
-        <label for="aiKind">Provider</label>
-        <select id="aiKind">
-          <option value="mock">Built-in (offline, no key)</option>
-          <option value="huggingface">Hugging Face</option>
-          <option value="openai-compatible">Custom OpenAI-compatible endpoint</option>
-        </select>
-      </div>
-      <div class="field" id="aiBaseUrlField" style="display:none">
-        <label for="aiBaseUrl">Base URL</label>
-        <input id="aiBaseUrl" type="text" placeholder="https://router.huggingface.co/v1" />
-      </div>
-      <div class="field" id="aiKeyField" style="display:none">
-        <label for="aiApiKey">API Key</label>
-        <input id="aiApiKey" type="password" placeholder="hf_…" />
-      </div>
-      <div class="field" id="aiModelField" style="display:none">
-        <label for="aiModel">Model</label>
-        <input id="aiModel" type="text" placeholder="Qwen/Qwen2.5-Coder-1.5B-Instruct" />
-      </div>
-      <button id="saveAiSettingsBtn" class="small">Save Provider</button>
-      <div id="aiSettingsStatus" class="status-line"></div>
-    </details>
-  </aside>
-
-  <main class="main-col">
-    <section class="panel summary-card hidden" id="summaryPanel" aria-labelledby="summaryRepo"></section>
-
-    <section class="panel hidden" id="diffPanel">
-      <h2>Diff</h2>
-      <div id="diffView" class="diff-view"></div>
-    </section>
-
-    <section class="panel" id="radarPanel" style="display:none">
-      <h2>Blast Radius</h2>
-      <div class="radar-wrap">
-        <div id="radarSvgWrap"></div>
-        <div class="radar-legend" id="radarLegend"></div>
-      </div>
-    </section>
-
-    <section class="panel" id="briefPanel" style="display:none">
-      <h2>Review Brief</h2>
-      <div id="briefRoot"></div>
-    </section>
-
-    <div class="empty-state" id="emptyState">
-      <svg class="empty-icon" viewBox="0 0 56 56" aria-hidden="true">
-        <circle cx="28" cy="28" r="26" fill="none" stroke="currentColor" stroke-opacity=".15" stroke-width="2"/>
-        <circle cx="28" cy="28" r="17" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="2" stroke-dasharray="3 5"/>
-        <circle cx="28" cy="28" r="7" fill="#0071e3"/>
-      </svg>
-      <h2 id="emptyTitle">No Change Analyzed Yet</h2>
-      <p id="emptyText">Choose a repository folder or .zip on the left, pick the branches to compare, and DiffLens will map everything the change touches.</p>
-    </div>
-  </main>
-</div>
+    <div id="resultsBody"></div>
+  </section>
+</main>
 
 <footer class="app-footer">
-  DiffLens runs entirely in your browser ·
-  <a href="https://github.com/yazhiniyanMS/Diff-Lens-IBM-Hackathon-/blob/main/docs/static-build.md">How it works</a>
+  Runs entirely in your browser · <a href="https://github.com/yazhiniyanMS/Diff-Lens-IBM-Hackathon-/blob/main/docs/static-build.md">How it works</a>
 </footer>
 
+<div class="toast-region" id="toastRegion" role="status" aria-live="polite"></div>
+<div class="drop-overlay hidden" id="dropOverlay" aria-hidden="true"><p>Drop to open</p></div>
 <div id="modalRoot"></div>
 
 <script src="vendor/diff.js"></script>
 <script src="js/radar.js"></script>
-<script type="module" src="js/shell.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
