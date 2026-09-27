@@ -81,15 +81,17 @@ async function onRepoLoaded(repo) {
   state.repo.branches = branches;
   state.repo.currentRef = currentRef;
 
-  setStatus(statusEl, `✓ ${repo.name} · current: ${currentRef}`, "ok");
+  setStatus(statusEl, `${repo.name} · on ${currentRef}`, "ok");
   $("#writabilityNote").textContent = repo.writable
-    ? "Loaded with write access -- Fix Mode can update your real files directly."
-    : "Read-only load -- Fix Mode will offer a download instead of writing back.";
+    ? "Fixes you approve are written straight to these files."
+    : "Read-only copy — approved fixes are offered as downloads.";
 
   populateRefSelects(branches, currentRef);
   $("#compareSection").style.display = "block";
   $("#analyzeSection").style.display = "none";
   $("#diffPanel").classList.add("hidden");
+  $("#summaryPanel").classList.add("hidden");
+  $("#summarySection").classList.add("hidden");
 }
 
 $("#chooseFolderBtn").addEventListener("click", async () => {
@@ -224,7 +226,11 @@ $("#loadDiffBtn").addEventListener("click", async () => {
     if (!diffText.trim()) {
       setStatus(statusEl, "No differences between these two refs.", "error");
     } else {
-      setStatus(statusEl, "Diff loaded. This is what a line-oriented review would see.", "ok");
+      setStatus(statusEl, "Diff ready — this is all a line-by-line review sees.", "ok");
+      if ($("#emptyState").style.display !== "none") {
+        $("#emptyTitle").textContent = "Diff Ready";
+        $("#emptyText").textContent = "Analyze Change to see which tests, docs, and consumers this change reaches beyond the lines shown above.";
+      }
     }
   } catch (err) {
     setStatus(statusEl, err.message, "error");
@@ -266,7 +272,8 @@ $("#analyzeBtn").addEventListener("click", async () => {
   const btn = $("#analyzeBtn");
   const statusEl = $("#analyzeStatus");
   btn.disabled = true;
-  setStatus(statusEl, "Parsing diff, extracting symbols, gathering repository context, running AI analysis…");
+  setStatus(statusEl, "Analyzing — tracing symbols across the repository…");
+  $("#summaryPanel").classList.add("hidden");
   try {
     const session = await runAnalysis({
       fs: state.repo.fs,
@@ -298,7 +305,8 @@ function renderSession(session) {
     $("#radarPanel").style.display = "none";
     $("#briefPanel").style.display = "none";
     $("#emptyState").style.display = "block";
-    $("#emptyState").textContent = "No changes between the selected base and head — nothing to analyze.";
+    $("#emptyTitle").textContent = "Nothing to Analyze";
+    $("#emptyText").textContent = "The base and compare refs are identical. Choose a different branch to compare.";
     return;
   }
   $("#radarPanel").style.display = "block";
@@ -469,11 +477,11 @@ function findingCardHtml(f) {
           : ""
       }
       <div class="finding-actions">
-        <span class="finding-status-pill">${f.status.replace("_", " ")}</span>
+        <span class="finding-status-pill">${STATUS_LABEL[f.status] || f.status}</span>
         <button class="small" data-action="accept">Accept</button>
         <button class="small" data-action="dismiss">Dismiss</button>
-        <button class="small" data-action="needs_review">Needs review</button>
-        ${f.actionable ? `<button class="small primary" data-action="fix">Suggest Fix</button>` : ""}
+        <button class="small" data-action="needs_review">Needs Review</button>
+        ${f.actionable ? `<button class="small primary" data-action="fix">Suggest Fix…</button>` : ""}
       </div>
     </div>`;
 }
@@ -489,6 +497,7 @@ function attachFindingHandlers(session) {
         const idx = session.findings.findIndex((f) => f.id === findingId);
         session.findings[idx] = { ...session.findings[idx], status: statusMap[action] };
         renderBrief(session);
+        refreshSummaryIfShown();
         const wrap = $("#radarSvgWrap");
         window.DiffLensRadar.renderRadar(wrap, session.radar, (t) => showNodeModal(session, t));
       });
@@ -561,6 +570,7 @@ function renderFixModal(session, record) {
           addDownloadButtonsForTouchedFiles(statusEl.parentElement, applied.details);
         }
         renderBrief(session);
+        refreshSummaryIfShown();
       } catch (err) {
         setStatus(statusEl, err.message, "error");
       }
@@ -591,20 +601,186 @@ function downloadTextFile(filename, content) {
 
 // --- Reviewer summary / evidence docs -----------------------------------------
 
+const RISK_ORDER = ["high", "medium", "low", "informational"];
+const RISK_LABEL = { high: "High", medium: "Medium", low: "Low", informational: "Info" };
+const RISK_GLYPH = { high: "▲", medium: "◆", low: "●", informational: "○" };
+const STATUS_LABEL = { needs_review: "Needs review", accepted: "Accepted", dismissed: "Dismissed", fixed: "Fixed" };
+
+function byRisk(a, b) {
+  return RISK_ORDER.indexOf(a.risk) - RISK_ORDER.indexOf(b.risk);
+}
+
+function buildSummaryModel(session) {
+  const findings = [...session.findings].sort(byRisk);
+  const open = findings.filter((f) => f.status === "needs_review" || f.status === "accepted");
+  const fixed = findings.filter((f) => f.status === "fixed");
+  const dismissed = findings.filter((f) => f.status === "dismissed");
+  const counts = Object.fromEntries(RISK_ORDER.map((r) => [r, findings.filter((f) => f.risk === r && f.status !== "dismissed").length]));
+  const openHigh = open.filter((f) => f.risk === "high").length;
+  const openMedium = open.filter((f) => f.risk === "medium").length;
+
+  let verdict;
+  if (openHigh) {
+    verdict = { tone: "block", symbol: "!", title: "Not Ready to Merge", sub: `${openHigh} high-risk ${openHigh === 1 ? "finding needs" : "findings need"} to be resolved first.` };
+  } else if (openMedium) {
+    verdict = { tone: "caution", symbol: "!", title: "Merge With Caution", sub: `No high-risk findings remain, but ${openMedium} medium-risk ${openMedium === 1 ? "one is" : "ones are"} still open.` };
+  } else {
+    verdict = { tone: "clear", symbol: "✓", title: "Ready to Merge", sub: open.length ? "Only low-risk notes remain." : "Every finding has been fixed or dismissed." };
+  }
+
+  const s = session.diffSummary;
+  return {
+    repo: session.evidencePackage?.repoMeta?.name || state.repo?.name || "Repository",
+    base: session.base,
+    head: session.head,
+    provider: session.provider,
+    intent: session.analysis?.intent,
+    intentProvenance: session.analysis?.intentProvenance,
+    questions: session.analysis?.reviewQuestions || [],
+    stats: { files: s.filesChanged, additions: s.additions, deletions: s.deletions, related: session.radar?.nodes?.length || 0, findings: findings.length - dismissed.length },
+    counts, open, fixed, dismissed, verdict,
+  };
+}
+
+function summaryRowHtml(f) {
+  const files = [...new Set((f.evidence || []).map((e) => e.file).filter(Boolean))].slice(0, 4);
+  return `<li class="summary-row">
+      <span class="badge risk-${f.risk}">${RISK_LABEL[f.risk]}</span>
+      <div>
+        <div class="row-title">${escapeHtml(f.title)}</div>
+        <div class="row-sub">${escapeHtml(f.summary)}</div>
+        ${files.length ? `<div class="row-files">${files.map((x) => `<code>${escapeHtml(x)}</code>`).join("")}</div>` : ""}
+      </div>
+      <span class="status-chip ${f.status}">${STATUS_LABEL[f.status]}</span>
+    </li>`;
+}
+
+function renderSummary(session) {
+  const m = buildSummaryModel(session);
+  const total = RISK_ORDER.reduce((n, r) => n + m.counts[r], 0);
+  const meterLabel = RISK_ORDER.filter((r) => m.counts[r]).map((r) => `${m.counts[r]} ${RISK_LABEL[r].toLowerCase()}`).join(", ") || "no findings";
+  const time = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  $("#summaryPanel").innerHTML = `
+    <header class="summary-head">
+      <div>
+        <p class="summary-eyebrow">Review Summary</p>
+        <h2 class="summary-repo" id="summaryRepo">${escapeHtml(m.repo)}</h2>
+        <div class="summary-meta">
+          <span class="ref-chip">${escapeHtml(refLabel(m.base))}</span><span class="arrow" aria-label="compared with">→</span><span class="ref-chip">${escapeHtml(refLabel(m.head))}</span>
+          <span class="sep" aria-hidden="true">·</span><span>${escapeHtml(time)}</span>
+          <span class="sep" aria-hidden="true">·</span><span>${escapeHtml(m.provider)}</span>
+        </div>
+      </div>
+      <div class="summary-actions">
+        <button class="small" id="copySummaryBtn">Copy Markdown</button>
+        <button class="small" id="downloadSummaryBtn">Download .md</button>
+      </div>
+    </header>
+
+    <div class="verdict ${m.verdict.tone}" role="status">
+      <span class="verdict-symbol" aria-hidden="true">${m.verdict.symbol}</span>
+      <div>
+        <div class="verdict-title">${m.verdict.title}</div>
+        <div class="verdict-sub">${escapeHtml(m.verdict.sub)}</div>
+      </div>
+    </div>
+
+    <div class="risk-meter-wrap">
+      <div class="risk-meter" role="img" aria-label="Findings by risk: ${meterLabel}">
+        ${RISK_ORDER.filter((r) => m.counts[r]).map((r) => `<span class="seg-${r}" style="flex:${m.counts[r]}"></span>`).join("")}
+      </div>
+      <ul class="risk-legend" aria-hidden="true">
+        ${RISK_ORDER.map((r) => `<li><span class="glyph-${r}">${RISK_GLYPH[r]}</span>${RISK_LABEL[r]} <strong>${m.counts[r]}</strong></li>`).join("")}
+      </ul>
+    </div>
+
+    <dl class="stat-grid">
+      <div class="stat"><dt>Files Changed</dt><dd>${m.stats.files}</dd></div>
+      <div class="stat"><dt>Lines</dt><dd><span class="add">+${m.stats.additions}</span> <span class="del">−${m.stats.deletions}</span></dd></div>
+      <div class="stat"><dt>Related Files</dt><dd>${m.stats.related}</dd></div>
+      <div class="stat"><dt>Findings</dt><dd>${total}</dd></div>
+    </dl>
+
+    <div class="summary-body">
+      ${m.intent ? `<section class="summary-section"><h3>What This Change Does</h3>
+        <p class="summary-intent">${escapeHtml(m.intent)}${m.intentProvenance ? `<span class="badge provenance">${escapeHtml(m.intentProvenance)}</span>` : ""}</p></section>` : ""}
+
+      <section class="summary-section"><h3>Needs Attention <span class="count">${m.open.length}</span></h3>
+        ${m.open.length ? `<ul class="summary-list">${m.open.map(summaryRowHtml).join("")}</ul>` : `<p class="summary-empty">Nothing left open.</p>`}
+      </section>
+
+      ${m.fixed.length ? `<section class="summary-section"><h3>Fixed <span class="count">${m.fixed.length}</span></h3>
+        <ul class="summary-list">${m.fixed.map(summaryRowHtml).join("")}</ul></section>` : ""}
+
+      ${m.questions.length ? `<section class="summary-section"><h3>Questions for the Author</h3>
+        <ol class="summary-questions">${m.questions.map((q) => `<li><span>${escapeHtml(q)}</span></li>`).join("")}</ol></section>` : ""}
+
+      ${m.dismissed.length ? `<section class="summary-section"><details class="summary-dismissed"><summary>${m.dismissed.length} dismissed ${m.dismissed.length === 1 ? "finding" : "findings"}</summary>
+        <ul class="summary-list">${m.dismissed.map(summaryRowHtml).join("")}</ul></details></section>` : ""}
+
+      <p class="summary-foot">The verdict comes from DiffLens's risk rules and your Accept / Dismiss choices in the Review Brief — it updates as you triage. Use it as a starting point, not a substitute for judgment.</p>
+    </div>`;
+
+  $("#copySummaryBtn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    try {
+      await navigator.clipboard.writeText(summaryMarkdown(m));
+      btn.textContent = "Copied";
+    } catch {
+      btn.textContent = "Copy Failed";
+    }
+    setTimeout(() => { btn.textContent = "Copy Markdown"; }, 1600);
+  });
+  $("#downloadSummaryBtn").addEventListener("click", () => {
+    downloadTextFile(`${m.repo}-review-summary.md`, summaryMarkdown(m));
+  });
+}
+
+function summaryMarkdown(m) {
+  const row = (f) => [`- **${RISK_GLYPH[f.risk]} ${RISK_LABEL[f.risk]} · ${f.title}** _(${STATUS_LABEL[f.status]})_`, `  ${f.summary}`];
+  const lines = [
+    `# Review Summary — ${m.repo}`,
+    `\`${refLabel(m.base)}\` → \`${refLabel(m.head)}\``,
+    "",
+    `## ${m.verdict.title}`,
+    m.verdict.sub,
+    "",
+    `| Files changed | Lines | Related files | Findings |`,
+    `| --- | --- | --- | --- |`,
+    `| ${m.stats.files} | +${m.stats.additions} / −${m.stats.deletions} | ${m.stats.related} | ${m.stats.findings} |`,
+    "",
+  ];
+  if (m.intent) lines.push("## What This Change Does", m.intent, "");
+  lines.push(`## Needs Attention (${m.open.length})`);
+  if (m.open.length) m.open.forEach((f) => lines.push(...row(f)));
+  else lines.push("Nothing left open.");
+  lines.push("");
+  if (m.fixed.length) {
+    lines.push(`## Fixed (${m.fixed.length})`);
+    m.fixed.forEach((f) => lines.push(...row(f)));
+    lines.push("");
+  }
+  if (m.questions.length) {
+    lines.push("## Questions for the Author");
+    m.questions.forEach((q, i) => lines.push(`${i + 1}. ${q}`));
+    lines.push("");
+  }
+  lines.push("_Generated by DiffLens._");
+  return lines.join("\n");
+}
+
+function refreshSummaryIfShown() {
+  if (state.session && !$("#summaryPanel").classList.contains("hidden")) renderSummary(state.session);
+}
+
 $("#genSummaryBtn").addEventListener("click", () => {
   if (!state.session) return;
-  const session = state.session;
-  const accepted = session.findings.filter((f) => f.status === "accepted" || f.status === "fixed");
-  const lines = [`# Review Summary — ${session.evidencePackage?.repoMeta?.name || state.repo.name}`, `Comparing \`${session.base}\` → \`${session.head}\``, ""];
-  if (session.analysis?.intent) lines.push(`**Intent:** ${session.analysis.intent}`, "");
-  if (accepted.length === 0) {
-    lines.push("_No findings have been accepted yet._");
-  } else {
-    for (const f of accepted) lines.push(`- **[${f.risk.toUpperCase()}] ${f.title}** (${f.status})`, `  ${f.summary}`);
-  }
-  const box = $("#summaryBox");
-  box.textContent = lines.join("\n");
-  box.classList.remove("hidden");
+  renderSummary(state.session);
+  const panel = $("#summaryPanel");
+  panel.classList.remove("hidden");
+  const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  panel.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
 });
 
 $("#genEvidenceBtn").addEventListener("click", async () => {
@@ -667,31 +843,6 @@ function closeModal() {
 function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-
-// --- Theme toggle ----------------------------------------------------------------
-
-function applyTheme(theme) {
-  document.documentElement.setAttribute("data-theme", theme);
-  const btn = $("#themeToggleBtn");
-  const icon = $("#themeToggleIcon");
-  const label = $("#themeToggleLabel");
-  const isLight = theme === "light";
-  btn.setAttribute("aria-pressed", String(isLight));
-  icon.textContent = isLight ? "☀" : "☾";
-  label.textContent = isLight ? "Light" : "Dark";
-  try {
-    localStorage.setItem("difflens-theme", theme);
-  } catch {
-    // Private browsing / storage disabled: theme just won't persist.
-  }
-}
-
-$("#themeToggleBtn").addEventListener("click", () => {
-  const current = document.documentElement.getAttribute("data-theme") || "dark";
-  applyTheme(current === "light" ? "dark" : "light");
-});
-
-applyTheme(document.documentElement.getAttribute("data-theme") || "dark");
 
 // --- Init ------------------------------------------------------------------------
 
