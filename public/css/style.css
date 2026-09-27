@@ -537,3 +537,16 @@ footer.app-footer { text-align: center; color: var(--text-2); font-size: var(--f
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-14px) rotate(4deg); }
 }
+.step-nav { display: flex; align-items: center; margin-bottom: 18px; }
+.step-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--bg-2); color: var(--text-2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; flex-shrink: 0;
+  transition: all 0.2s; cursor: pointer;
+}
+.step-dot.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #06121c; border-color: transparent; }
+.step-dot.done { background: var(--ok-dim); border-color: var(--ok); color: var(--ok); }
+.step-line { flex: 1; height: 2px; background: var(--border); margin: 0 4px; }
+.step-line.done { background: var(--ok); }
+.step-collapsed { display: none !important; }
