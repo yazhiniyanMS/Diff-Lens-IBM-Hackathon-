@@ -46,6 +46,22 @@
     <h1 class="hero-title">REVIEW BY<br><span>INTENT</span>, NOT LINES.</h1>
     <p class="hero-sub">DiffLens reads your diff against the whole repository — tests, docs, contracts, consumers — and hands reviewers the questions that actually matter.</p>
     <div class="hero-illustration">
+  <div class="code-window">
+    <div class="code-window-bar">
+      <span class="code-window-dot"></span>
+      <span class="code-window-dot"></span>
+      <span class="code-window-dot"></span>
+    </div>
+    <div class="code-window-body">
+      <div><span class="kw">function</span> <span class="fn">reviewDiff</span>(pr) {</div>
+      <div>&nbsp;&nbsp;<span class="kw">const</span> intent = analyze(pr);</div>
+      <div>&nbsp;&nbsp;<span class="cm">// checks tests, docs, contracts</span></div>
+      <div>&nbsp;&nbsp;<span class="kw">return</span> <span class="str">"reviewed with context"</span>;</div>
+      <div>}</div>
+    </div>
+  </div>
+</div>
+    <div class="hero-illustration">
       <div class="code-window">
         <div class="code-window-bar">
           <span class="code-window-dot"></span>
