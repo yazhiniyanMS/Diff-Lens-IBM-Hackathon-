@@ -31,6 +31,11 @@ function setStatus(el, text, kind) {
   if (kind) el.classList.add(kind);
 }
 
+function markStepDone(panelId) {
+  const stepNum = document.querySelector(`#${panelId} h2 .step-num`);
+  if (stepNum) stepNum.classList.add("done");
+}
+
 // --- AI provider settings ----------------------------------------------------
 
 function refreshAiSettingsFields() {
@@ -97,6 +102,8 @@ async function onRepoLoaded(repo) {
   $("#summaryPanel").classList.add("hidden");
   $("#summarySection").classList.add("hidden");
   emitStep("repo");
+  markStepDone("loadPanel");
+  window.DiffLensToast(`Loaded ${repo.name}`);
 }
 
 $("#chooseFolderBtn").addEventListener("click", async () => {
@@ -246,6 +253,7 @@ $("#loadDiffBtn").addEventListener("click", async () => {
     } else {
       setStatus(statusEl, "Diff ready — this is all a line-by-line review sees.", "ok");
       emitStep("diff");
+      markStepDone("compareSection");
       if ($("#emptyState").style.display !== "none") {
         $("#emptyTitle").textContent = "Diff Ready";
         $("#emptyText").textContent = "Analyze Change to see which tests, docs, and consumers this change reaches beyond the lines shown above.";
@@ -293,6 +301,11 @@ $("#analyzeBtn").addEventListener("click", async () => {
   btn.disabled = true;
   setStatus(statusEl, "Analyzing — tracing symbols across the repository…");
   $("#summaryPanel").classList.add("hidden");
+  $("#radarPanel").style.display = "block";
+  $("#briefPanel").style.display = "block";
+  $("#emptyState").style.display = "none";
+  $("#radarSvgWrap").innerHTML = '<div class="skeleton" style="height:340px;border-radius:12px;"></div>';
+  $("#briefRoot").innerHTML = '<div class="skeleton" style="height:220px;border-radius:12px;"></div>';
   try {
     const session = await runAnalysis({
       fs: state.repo.fs,
@@ -310,6 +323,8 @@ $("#analyzeBtn").addEventListener("click", async () => {
       setStatus(statusEl, "Analysis complete.", "ok");
       $("#summarySection").classList.remove("hidden");
       emitStep("analysis");
+      markStepDone("analyzeSection");
+      window.DiffLensToast("Analysis complete.");
     }
   } catch (err) {
     setStatus(statusEl, err.message, "error");
@@ -627,6 +642,7 @@ function renderFixModal(session, record) {
         });
         const diskNote = state.repo.dirHandle ? (applied.wroteToDisk ? " (written to your real files)" : " (could not write to disk — check folder permissions)") : " (in-browser copy only — use Download to save it)";
         setStatus(statusEl, `Applied. Touched: ${applied.touchedFiles.join(", ") || "(no changes needed)"}${diskNote}`, "ok");
+        window.DiffLensToast("Fix applied.");
         const idx = session.findings.findIndex((f) => f.id === record.findingId);
         if (idx !== -1) session.findings[idx].status = "fixed";
         if (!state.repo.dirHandle) {
@@ -845,6 +861,7 @@ $("#genSummaryBtn").addEventListener("click", () => {
   const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   panel.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
   emitStep("summary");
+  markStepDone("summarySection");
 });
 
 $("#genEvidenceBtn").addEventListener("click", async () => {
@@ -867,6 +884,7 @@ $("#genEvidenceBtn").addEventListener("click", async () => {
     a.click();
     URL.revokeObjectURL(url);
     setStatus(statusEl, "Downloaded bob-code-review.zip", "ok");
+    window.DiffLensToast("Evidence docs downloaded.");
   } catch (err) {
     setStatus(statusEl, err.message, "error");
   }
