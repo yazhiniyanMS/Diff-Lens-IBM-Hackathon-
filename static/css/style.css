@@ -769,3 +769,39 @@ button.large { font-size: 17px; padding: 12px 28px; min-height: 48px; border-rad
 
 /* Halo keeps radar labels legible where they cross rings or each other. */
 .radar-node text, .radar-ring-label { paint-order: stroke; stroke: var(--bg-1); stroke-width: 4px; stroke-linejoin: round; }
+
+.toast-root { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+.toast { background: var(--bg-1); color: var(--text-0); box-shadow: var(--shadow-2); border-radius: 999px; padding: 10px 18px; font-size: var(--fs-small); font-weight: 500; display: flex; align-items: center; gap: 8px; animation: toast-in 0.25s cubic-bezier(0.2,0.8,0.2,1); }
+.toast.ok::before { content: "✓"; color: var(--ok); font-weight: 700; }
+.toast.error::before { content: "⚠︎"; color: var(--risk); }
+.toast.leaving { animation: toast-out 0.2s ease-in forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px) scale(0.95); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(6px) scale(0.95); } }
+
+.step-num.done { background: var(--ok-dim); color: var(--ok); }
+.step-num.done::after { content: "✓"; }
+
+.skeleton { position: relative; overflow: hidden; background: var(--bg-2); border-radius: var(--radius-s); }
+.skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text-0) 6%, transparent), transparent);
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+.radar-node { animation: node-in 0.35s cubic-bezier(0.2,0.8,0.2,1) backwards; }
+@keyframes node-in { from { opacity: 0; transform: scale(0.5); } }
+.radar-edge { stroke-dasharray: 200; stroke-dashoffset: 200; animation: edge-draw 0.5s ease-out forwards; }
+@keyframes edge-draw { to { stroke-dashoffset: 0; } }
+.radar-node.risk circle { animation: risk-pulse 2s ease-in-out infinite; animation-delay: 1.2s; }
+@keyframes risk-pulse { 0%, 100% { stroke-width: 1.5px; } 50% { stroke-width: 3px; } }
+.radar-node-halo { fill: none; stroke: var(--text-0); stroke-opacity: 0.15; stroke-width: 6px; }
+@media (prefers-reduced-motion: reduce) { .radar-node.risk circle { animation: none; } }
+
+.finding { transition: box-shadow 0.15s, transform 0.15s; }
+.finding:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
+
+.modal-backdrop.leaving { animation: fade-out 0.15s ease-in forwards; }
+.modal-backdrop.leaving .modal { animation: sheet-out 0.15s ease-in forwards; }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes sheet-out { to { opacity: 0; transform: translateY(8px) scale(0.98); } }
