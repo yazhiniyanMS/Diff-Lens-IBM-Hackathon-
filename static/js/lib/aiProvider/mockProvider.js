@@ -11,6 +11,16 @@ import { AIProvider } from "./AIProvider.js";
  * real API calls, and gives judges a clear seam where a real IBM/Bob call
  * would slot in (see bobProvider.js).
  */
+const code = (x) => `\`${x}\``;
+function list(items, wrap = code) {
+  const w = items.map(wrap);
+  if (w.length <= 1) return w.join("");
+  if (w.length === 2) return `${w[0]} and ${w[1]}`;
+  return `${w.slice(0, -1).join(", ")}, and ${w[w.length - 1]}`;
+}
+const plural = (n, one, many) => (n === 1 ? one : many);
+const route = (r) => `${r.method} ${r.path}`;
+
 export class MockAnalysisProvider extends AIProvider {
   get name() {
     return "mock-heuristic";
@@ -30,15 +40,15 @@ export class MockAnalysisProvider extends AIProvider {
     const behavioralChanges = [];
     if (isFieldRename) {
       behavioralChanges.push({
-        summary: `The response/data shape changed: field(s) [${removed.join(", ")}] were removed and [${added.join(", ")}] were introduced in ${changedFiles.join(", ")}.`,
+        summary: `The response shape changed: ${list(removed)} ${plural(removed.length, "was", "were")} removed and ${list(added)} added in ${list(changedFiles)}.`,
         provenance: "fact",
-        evidence: changedFiles.map((f) => ({ file: f, lines: [], note: "field rename observed in diff" })),
+        evidence: changedFiles.map((f) => ({ file: f, lines: [], note: "Renames the field here" })),
       });
     } else if (addedFunctions.length) {
       behavioralChanges.push({
-        summary: `New function(s) [${addedFunctions.join(", ")}] added in ${changedFiles.join(", ")}.`,
+        summary: `New ${plural(addedFunctions.length, "function", "functions")} ${list(addedFunctions)} added in ${list(changedFiles)}.`,
         provenance: "fact",
-        evidence: changedFiles.map((f) => ({ file: f, note: "new function observed in diff" })),
+        evidence: changedFiles.map((f) => ({ file: f, note: "Adds the function here" })),
       });
     }
 
@@ -59,7 +69,7 @@ export class MockAnalysisProvider extends AIProvider {
         {
           file: item.file,
           lines: item.lines,
-          note: `Matched terms: ${item.matches.map((m) => `${m.term} (${m.kind})`).join(", ")}`,
+          note: `Matches ${list(item.matches.map((m) => m.term))}`,
         },
       ],
     }));
@@ -67,9 +77,9 @@ export class MockAnalysisProvider extends AIProvider {
     const apiContractChanges = [];
     if (routes.length && removed.length) {
       apiContractChanges.push({
-        summary: `Endpoint(s) ${routes.map((r) => `${r.method} ${r.path}`).join(", ")} changed their response contract by replacing field(s) [${removed.join(", ")}] with [${added.join(", ")}].`,
+        summary: `${list(routes.map(route))} now ${plural(routes.length, "returns", "return")} ${list(added)} instead of ${list(removed)}, changing the response contract.`,
         provenance: "fact",
-        evidence: changedFiles.map((f) => ({ file: f, note: "route + field change observed in diff" })),
+        evidence: changedFiles.map((f) => ({ file: f, note: "Changes the endpoint's response here" })),
       });
     }
 
@@ -79,18 +89,18 @@ export class MockAnalysisProvider extends AIProvider {
     for (const t of testItems) {
       if (referencesRemoved(t)) {
         missingTests.push({
-          title: `Update contract test in ${t.file} for the new response shape`,
-          rationale: `${t.file} asserts on field(s) [${removed.join(", ")}] that no longer exist in the response. Left as-is this test will fail (best case) or needs a new assertion on [${added.join(", ")}] to keep the contract enforced (worst case: silently deleted coverage).`,
+          title: `Update the contract test in ${code(t.file)}`,
+          rationale: `This test still checks ${list(removed)}, which the response no longer includes. It will fail as-is, and it needs an assertion on ${list(added)} to keep the contract covered.`,
           targetFile: t.file,
           suggestedAssertions: added.map((f) => `expect(response.body).to.have.property('${f}')`),
-          evidence: [{ file: t.file, lines: t.lines, note: `references removed field(s): ${removed.join(", ")}` }],
+          evidence: [{ file: t.file, lines: t.lines, note: `still references ${list(removed)}` }],
         });
       }
     }
     if (routes.length && !testItems.length) {
       missingTests.push({
-        title: `Add a contract test for ${routes.map((r) => `${r.method} ${r.path}`).join(", ")}`,
-        rationale: "No existing test file references this endpoint's response shape; the new contract has no regression coverage.",
+        title: `Add a contract test for ${list(routes.map(route))}`,
+        rationale: "No existing test checks this endpoint's response, so the new contract has no regression coverage.",
         targetFile: "",
         suggestedAssertions: added.map((f) => `expect(response.body).to.have.property('${f}')`),
         evidence: changedFiles.map((f) => ({ file: f })),
@@ -116,7 +126,7 @@ export class MockAnalysisProvider extends AIProvider {
           rationale: `\`${fn}\` was added in this diff but no test (in this PR or elsewhere in the repo) appears to exercise it by name.`,
           targetFile: "",
           suggestedAssertions: [`assert.equal(${fn}(/* inputs */), /* expected */)`],
-          evidence: changedFiles.map((f) => ({ file: f, note: `defines/touches ${fn}` })),
+          evidence: changedFiles.map((f) => ({ file: f, note: `Defines or changes ${code(fn)}` })),
         });
       }
     }
@@ -125,8 +135,8 @@ export class MockAnalysisProvider extends AIProvider {
       .filter(referencesRemoved)
       .map((d) => ({
         file: d.file,
-        issue: `Documents field(s) [${removed.join(", ")}] which no longer appear in the actual response; now [${added.join(", ")}] instead.`,
-        evidence: [{ file: d.file, lines: d.lines, note: "stale field name in docs" }],
+        issue: `Still documents ${list(removed)}, but the response now returns ${list(added)}.`,
+        evidence: [{ file: d.file, lines: d.lines, note: "Still uses the old field name" }],
       }));
 
     const untouchedFiles = [...apiConsumers, ...testItems, ...docItems, ...serviceItems]
@@ -134,14 +144,14 @@ export class MockAnalysisProvider extends AIProvider {
       .filter((item) => !changedFiles.includes(item.file))
       .map((item) => ({
         file: item.file,
-        reason: `Not modified by this PR but references the removed field(s) [${removed.join(", ")}]. ${describeReason(item)}`,
+        reason: `Not changed in this PR, but still uses ${list(removed)}.`,
         evidence: [{ file: item.file, lines: item.lines }],
       }));
 
     const backwardCompatibilityConcerns = [];
     if (removed.length && apiConsumers.some(referencesRemoved)) {
       backwardCompatibilityConcerns.push({
-        summary: `Removing field(s) [${removed.join(", ")}] without a transition period breaks any consumer (internal or external) still reading the old field name, with no deprecation window.`,
+        summary: `Removing ${list(removed)} with no transition period breaks any consumer — internal or external — that still reads the old ${plural(removed.length, "name", "names")}.`,
         provenance: "inference",
         evidence: apiConsumers.filter(referencesRemoved).map((c) => ({ file: c.file, lines: c.lines })),
       });
@@ -155,7 +165,7 @@ export class MockAnalysisProvider extends AIProvider {
       intent,
       intentProvenance: "inference",
       behavioralChanges,
-      affectedWorkflows: apiConsumers.map((c) => `User-facing flow touching ${c.file}`),
+      affectedWorkflows: apiConsumers.map((c) => `User-facing flow in ${code(c.file)}`),
       impactedModules,
       apiContractChanges,
       schemaInterfaceImpact: [],
@@ -200,17 +210,15 @@ export class MockAnalysisProvider extends AIProvider {
 
 function buildIntent({ removed, added, routes, diffSummary, changedFiles, addedFunctions = [] }) {
   if (removed.length && added.length && routes.length) {
-    return `Rename/restructure the response field(s) [${removed.join(", ")}] to [${added.join(", ")}] on ${routes
-      .map((r) => `${r.method} ${r.path}`)
-      .join(", ")}, apparently to simplify the API's naming.`;
+    return `Renames the response ${plural(removed.length, "field", "fields")} ${list(removed)} to ${list(added)} on ${list(routes.map(route))}, most likely to simplify the API's naming.`;
   }
   if (removed.length && added.length) {
-    return `Rename field(s) [${removed.join(", ")}] to [${added.join(", ")}] in ${changedFiles.join(", ")}.`;
+    return `Renames ${list(removed)} to ${list(added)} in ${list(changedFiles)}.`;
   }
   if (addedFunctions.length) {
-    return `Add new function(s) [${addedFunctions.join(", ")}] in ${changedFiles.join(", ")}.`;
+    return `Adds ${plural(addedFunctions.length, "the function", "the functions")} ${list(addedFunctions)} in ${list(changedFiles)}.`;
   }
-  return `Modify ${changedFiles.join(", ")} (${diffSummary.additions} additions, ${diffSummary.deletions} deletions); no clear field-level contract signal detected.`;
+  return `Changes ${list(changedFiles)} (+${diffSummary.additions} / −${diffSummary.deletions} lines). No field-level contract change was detected.`;
 }
 
 function escapeRegex(s) {
@@ -219,36 +227,32 @@ function escapeRegex(s) {
 
 function describeReason(item) {
   const kinds = item.matches.map((m) => m.kind);
-  if (kinds.includes("removed_field")) return "References a field name that this PR removed from the response.";
-  if (kinds.includes("route")) return "References the same route/endpoint touched by this PR.";
-  if (kinds.includes("symbol")) return "References a function/symbol touched by this PR.";
-  if (kinds.includes("import")) return "Imports or is named after a file touched by this PR.";
-  return "Textually related to the changed code.";
+  if (kinds.includes("removed_field")) return "Uses a field this change removed from the response.";
+  if (kinds.includes("route")) return "Calls the same endpoint this change touches.";
+  if (kinds.includes("symbol")) return "Uses a function this change touches.";
+  if (kinds.includes("import")) return "Imports a file this change touches.";
+  return "Mentions the changed code.";
 }
 
 function buildReviewQuestions({ removed, added, routes, apiConsumers, testItems, docItems }) {
   const qs = [];
   if (removed.length && added.length) {
-    qs.push(
-      `Is the rename from [${removed.join(", ")}] to [${added.join(", ")}] intentional, and is it meant to ship in this PR or behind a compatibility shim?`
-    );
+    qs.push(`Is renaming ${list(removed)} to ${list(added)} intentional, and should it ship now or behind a compatibility shim?`);
   }
   if (apiConsumers.length) {
-    qs.push(
-      `${apiConsumers.map((c) => c.file).join(", ")} still reads the old field name — should this PR update them, or is a follow-up PR planned before merge?`
-    );
+    qs.push(`${list(apiConsumers.map((c) => c.file))} still ${plural(apiConsumers.length, "reads", "read")} the old field. Should this PR update ${plural(apiConsumers.length, "it", "them")}, or is a follow-up planned before merge?`);
   }
   if (testItems.length) {
-    qs.push(`Should ${testItems.map((t) => t.file).join(", ")} be updated in this PR so the contract test still enforces the response shape?`);
+    qs.push(`Should ${list(testItems.map((t) => t.file))} be updated in this PR so the contract stays tested?`);
   }
   if (docItems.length) {
-    qs.push(`Should ${docItems.map((d) => d.file).join(", ")} be updated before merge so published API docs match the new response shape?`);
+    qs.push(`Should ${list(docItems.map((d) => d.file))} be updated before merge so the API docs match?`);
   }
   if (routes.length) {
-    qs.push(`Is this a versioned/breaking API change? Should ${routes.map((r) => r.path).join(", ")} bump a version or support both field names during a migration window?`);
+    qs.push(`Is this a breaking API change? Should ${list(routes.map(route))} get a new version, or accept both field names during a migration window?`);
   }
   if (!qs.length) {
-    qs.push("No high-signal contract change detected — confirm the diff's intent matches the PR description.");
+    qs.push("No contract change detected — does the diff match what the PR description says it does?");
   }
   return qs;
 }
@@ -264,7 +268,7 @@ function generateDocPatch(finding, evidence) {
   const diffLines = [`--- a/${file}`, `+++ b/${file}`, `@@ doc field name update @@`, ...pairs.flatMap(([r, a]) => [`-${r}`, `+${a}`])];
   return {
     findingId: finding.id,
-    summary: `Update ${file} to reference the new field name(s) [${added.join(", ")}] instead of [${removed.join(", ")}].`,
+    summary: `Update ${code(file)} to document ${list(added)} instead of ${list(removed)}.`,
     unifiedDiff: diffLines.join("\n"),
     targetFiles: [file],
     rationale: "Deterministic find/replace of the documented field name based on the diff's field rename.",
@@ -282,7 +286,7 @@ function generateTestPatch(finding, evidence) {
   const assertion = `  assert.equal(typeof body.${added[0]}, "string", "expected ${added[0]} field per updated API contract");`;
   return {
     findingId: finding.id,
-    summary: `Add an assertion for the new field "${added[0]}" alongside the existing contract test in ${file}.`,
+    summary: `Add an assertion for ${code(added[0])} to the contract test in ${code(file)}.`,
     unifiedDiff: `--- a/${file}\n+++ b/${file}\n@@ add assertion for new contract field @@\n${assertion}`,
     targetFiles: [file],
     rationale: "The response contract changed; the test should assert the new field is present so coverage isn't silently lost.",
