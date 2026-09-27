@@ -164,25 +164,25 @@ function buildFindings(analysis, evidencePackage) {
   const hasUntouchedConsumer = analysis.untouchedFiles.length > 0;
 
   for (const item of analysis.behavioralChanges) {
-    findings.push(makeFinding({ category: "behavioral_change", title: "Behavioral change", summary: item.summary, provenance: item.provenance, evidence: item.evidence, extra: {} }));
+    findings.push(makeFinding({ category: "behavioral_change", title: "Behavior change", summary: item.summary, provenance: item.provenance, evidence: item.evidence, extra: {} }));
   }
   for (const item of analysis.apiContractChanges) {
-    findings.push(makeFinding({ category: "api_contract_change", title: "API contract change", summary: item.summary, provenance: item.provenance, evidence: item.evidence, extra: { removedFieldStillReferenced: hasUntouchedConsumer } }));
+    findings.push(makeFinding({ category: "api_contract_change", title: "API response changed", summary: item.summary, provenance: item.provenance, evidence: item.evidence, extra: { removedFieldStillReferenced: hasUntouchedConsumer } }));
   }
   for (const item of analysis.missingTests) {
     findings.push(makeFinding({ category: "missing_test", title: item.title, summary: item.rationale, provenance: "inference", evidence: item.evidence, actionable: true, extra: { contractTestExists: !!item.targetFile, contractTestUpdated: false } }));
   }
   for (const item of analysis.documentationGaps) {
-    findings.push(makeFinding({ category: "documentation_gap", title: `Stale documentation: ${item.file}`, summary: item.issue, provenance: "inference", evidence: item.evidence, actionable: /(^|\/)docs\//i.test(item.file), extra: { contractChanged: analysis.apiContractChanges.length > 0 } }));
+    findings.push(makeFinding({ category: "documentation_gap", title: `Outdated docs in \`${item.file}\``, summary: item.issue, provenance: "inference", evidence: item.evidence, actionable: /(^|\/)docs\//i.test(item.file), extra: { contractChanged: analysis.apiContractChanges.length > 0 } }));
   }
   for (const item of analysis.securityConcerns) {
-    findings.push(makeFinding({ category: "security_concern", title: "Security / validation concern", summary: item.summary, provenance: item.provenance, evidence: item.evidence, extra: {} }));
+    findings.push(makeFinding({ category: "security_concern", title: "Security or validation concern", summary: item.summary, provenance: item.provenance, evidence: item.evidence, extra: {} }));
   }
   for (const item of analysis.backwardCompatibilityConcerns) {
-    findings.push(makeFinding({ category: "backward_compatibility", title: "Backward compatibility concern", summary: item.summary, provenance: item.provenance, evidence: item.evidence, extra: {} }));
+    findings.push(makeFinding({ category: "backward_compatibility", title: "Breaks existing consumers", summary: item.summary, provenance: item.provenance, evidence: item.evidence, extra: {} }));
   }
   for (const item of analysis.untouchedFiles) {
-    findings.push(makeFinding({ category: "untouched_consumer", title: `Suspiciously untouched: ${item.file}`, summary: item.reason, provenance: "inference", evidence: item.evidence, extra: { referencesChangedSymbol: true } }));
+    findings.push(makeFinding({ category: "untouched_consumer", title: `\`${item.file}\` wasn't updated`, summary: item.reason, provenance: "inference", evidence: item.evidence, extra: { referencesChangedSymbol: true } }));
   }
 
   return findings;

@@ -21,6 +21,10 @@ const state = {
   aiProvider: null,
 };
 
+export function emitStep(name) {
+  document.dispatchEvent(new CustomEvent("difflens:step", { detail: name }));
+}
+
 function setStatus(el, text, kind) {
   el.textContent = text;
   el.classList.remove("error", "ok");
@@ -92,6 +96,7 @@ async function onRepoLoaded(repo) {
   $("#diffPanel").classList.add("hidden");
   $("#summaryPanel").classList.add("hidden");
   $("#summarySection").classList.add("hidden");
+  emitStep("repo");
 }
 
 $("#chooseFolderBtn").addEventListener("click", async () => {
@@ -113,6 +118,19 @@ $("#chooseFolderBtn").addEventListener("click", async () => {
 });
 
 $("#chooseZipBtn").addEventListener("click", () => $("#zipInput").click());
+
+$("#sampleBtn").addEventListener("click", async () => {
+  const statusEl = $("#repoStatus");
+  setStatus(statusEl, "Loading the sample repository…");
+  try {
+    const res = await fetch("samples/demo-repo.zip");
+    if (!res.ok) throw new Error(`Couldn't load the sample (HTTP ${res.status}).`);
+    const repo = await loadFromZip(await res.arrayBuffer(), "demo-repo.zip");
+    await onRepoLoaded(repo);
+  } catch (err) {
+    setStatus(statusEl, err.message, "error");
+  }
+});
 
 $("#folderInput").addEventListener("change", async (e) => {
   const allFiles = Array.from(e.target.files || []);
@@ -227,6 +245,7 @@ $("#loadDiffBtn").addEventListener("click", async () => {
       setStatus(statusEl, "No differences between these two refs.", "error");
     } else {
       setStatus(statusEl, "Diff ready — this is all a line-by-line review sees.", "ok");
+      emitStep("diff");
       if ($("#emptyState").style.display !== "none") {
         $("#emptyTitle").textContent = "Diff Ready";
         $("#emptyText").textContent = "Analyze Change to see which tests, docs, and consumers this change reaches beyond the lines shown above.";
@@ -290,6 +309,7 @@ $("#analyzeBtn").addEventListener("click", async () => {
     } else {
       setStatus(statusEl, "Analysis complete.", "ok");
       $("#summarySection").classList.remove("hidden");
+      emitStep("analysis");
     }
   } catch (err) {
     setStatus(statusEl, err.message, "error");
@@ -315,45 +335,68 @@ function renderSession(session) {
   renderBrief(session);
 }
 
+const NODE_LABEL = {
+  changed: "Changed file",
+  affected: "Affected",
+  potentially_affected: "May be affected",
+  risk: "Needs attention",
+  verified: "Verified",
+};
+const RELATIONSHIP_LABEL = {
+  api_consumer: "API consumer",
+  test: "Test",
+  documentation: "Documentation",
+  service: "Service",
+  schema: "Schema",
+  dependency: "Dependency",
+  config: "Configuration",
+};
+const PROVENANCE_LABEL = { fact: "From the diff", inference: "Inferred" };
+
+function humanize(key) {
+  return RELATIONSHIP_LABEL[key] || String(key || "").replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
 function renderRadarSection(session) {
   const wrap = $("#radarSvgWrap");
   window.DiffLensRadar.renderRadar(wrap, session.radar, (target) => showNodeModal(session, target));
-  const legend = $("#radarLegend");
   const glyph = window.DiffLensRadar.STATUS_GLYPH;
-  legend.innerHTML = `
-    <div class="legend-item"><span class="dot changed"></span> Changed file (${glyph.changed})</div>
-    <div class="legend-item"><span class="dot affected"></span> Affected (${glyph.affected})</div>
-    <div class="legend-item"><span class="dot potentially_affected"></span> Potentially affected (${glyph.potentially_affected})</div>
-    <div class="legend-item"><span class="dot risk"></span> Needs attention (${glyph.risk})</div>
-    <div class="legend-item"><span class="dot verified"></span> Verified (${glyph.verified})</div>
-    <p style="color:var(--text-2);margin-top:6px">Click any node for the evidence behind it.</p>
-  `;
+  $("#radarLegend").innerHTML = `
+    ${Object.keys(NODE_LABEL)
+      .map((k) => `<div class="legend-item"><span class="legend-node ${k}" aria-hidden="true">${glyph[k]}</span>${NODE_LABEL[k]}</div>`)
+      .join("")}
+    <p class="legend-hint">Select a file to see why it's connected.</p>`;
 }
 
 function showNodeModal(session, target) {
   if (target.kind === "changed") {
-    openModal(`Changed file`, `<p class="mono">${escapeHtml(target.file)}</p><p style="color:var(--text-2)">This file was directly modified in the diff being reviewed.</p>`);
+    openModal(`\`${target.file}\``, `<p class="modal-lede">This file was changed directly in the diff you're reviewing.</p>`);
     return;
   }
   const node = target.node;
   const related = session.findings.filter((f) => node.findingIds.includes(f.id));
   const matchesHtml = (node.matches || [])
-    .map((m) => `<li><code>${escapeHtml(m.term)}</code> — ${escapeHtml(m.kind)} (${m.count}×, line ${m.lines.join(", ")})</li>`)
+    .map((m) => `<li><code class="tok">${escapeHtml(m.term)}</code><span class="muted">${escapeHtml(humanize(m.kind))} · ${m.count}× · ${linesLabel(m.lines)}</span></li>`)
     .join("");
-  const findingsHtml = related.length
-    ? related.map((f) => findingCardHtml(f)).join("")
-    : `<p style="color:var(--text-2)">No finding directly attached, but repository evidence links this file to the change:</p>`;
   openModal(
-    `Why is ${escapeHtml(node.file)} relevant?`,
-    `<p><span class="badge risk-${node.status === "risk" ? "high" : node.status === "potentially_affected" ? "medium" : "low"}">${escapeHtml(node.relationshipType)}</span></p>
-     <h4 style="margin-bottom:4px">Matched evidence</h4>
-     <ul class="evidence-list">${matchesHtml || "<li>(none)</li>"}</ul>
-     <h4 style="margin-bottom:4px">Related findings</h4>
-     ${findingsHtml}`
+    `Why \`${node.file}\` is connected`,
+    `<p><span class="badge risk-${node.status === "risk" ? "high" : node.status === "potentially_affected" ? "medium" : "low"}">${escapeHtml(humanize(node.relationshipType))}</span></p>
+     <h4>Evidence in this file</h4>
+     <ul class="evidence-list">${matchesHtml || `<li class="muted">No direct matches recorded.</li>`}</ul>
+     <h4>Related findings</h4>
+     ${related.length ? related.map((f) => findingCardHtml(f)).join("") : `<p class="muted">No finding is attached to this file, but the evidence above links it to the change.</p>`}`
   );
 }
 
-// --- Review Brief ------------------------------------------------------------
+function linesLabel(lines) {
+  if (!lines || !lines.length) return "";
+  return `${lines.length === 1 ? "line" : "lines"} ${lines.slice(0, 6).join(", ")}${lines.length > 6 ? "…" : ""}`;
+}
+
+// Escapes, then turns `backticked` names into code chips.
+function rich(str) {
+  return escapeHtml(str).replace(/`([^`]+)`/g, '<code class="tok">$1</code>');
+}
 
 const SECTIONS = [
   { id: "intent", title: "PR Intent", render: renderIntentSection },
@@ -398,7 +441,7 @@ function renderBrief(session) {
     if (section.render) {
       body.innerHTML = section.render(session);
     } else {
-      body.innerHTML = findings.length ? findings.map((f) => findingCardHtml(f)).join("") : `<p style="color:var(--text-2)">No findings in this category.</p>`;
+      body.innerHTML = findings.length ? findings.map((f) => findingCardHtml(f)).join("") : `<p class="muted">Nothing found here.</p>`;
     }
 
     wrapper.appendChild(head);
@@ -411,76 +454,96 @@ function renderBrief(session) {
 
 function renderIntentSection(session) {
   const a = session.analysis;
-  if (!a) return "<p>No analysis.</p>";
-  return `<p>${escapeHtml(a.intent)} <span class="badge provenance">${a.intentProvenance}</span></p>`;
+  if (!a) return `<p class="muted">No analysis available.</p>`;
+  return `<p class="lede">${rich(a.intent)}</p>
+    <p class="provenance-line">${provenanceTag(a.intentProvenance)}</p>`;
 }
+
+function provenanceTag(p) {
+  if (!p) return "";
+  return `<span class="badge provenance" title="${p === "fact" ? "Observed directly in the diff" : "Inferred from the diff and repository context"}">${PROVENANCE_LABEL[p] || escapeHtml(p)}</span>`;
+}
+
+const FILE_STATUS_LABEL = { modified: "Modified", added: "Added", deleted: "Deleted", renamed: "Renamed" };
 
 function renderWhatChangedSection(session) {
   const s = session.diffSummary;
-  return `<p>${s.filesChanged} file(s) changed · +${s.additions} / -${s.deletions}</p>
-    <ul class="evidence-list">
-      ${s.modified.map((f) => `<li>modified <code>${escapeHtml(f)}</code></li>`).join("")}
-      ${s.added.map((f) => `<li>added <code>${escapeHtml(f)}</code></li>`).join("")}
-      ${s.deleted.map((f) => `<li>deleted <code>${escapeHtml(f)}</code></li>`).join("")}
-      ${s.renamed.map((f) => `<li>renamed <code>${escapeHtml(f)}</code></li>`).join("")}
-    </ul>`;
+  const files = session.parsedFiles || [];
+  const rows = files
+    .map((f) => {
+      const path = f.status === "deleted" ? f.oldPath : f.newPath;
+      const shown = f.status === "renamed" ? `${f.oldPath} → ${f.newPath}` : path;
+      return `<li class="file-row">
+          <span class="file-status ${f.status}">${FILE_STATUS_LABEL[f.status] || f.status}</span>
+          <code class="file-path">${escapeHtml(shown)}</code>
+          <span class="file-delta"><span class="add">+${f.additions}</span><span class="del">−${f.deletions}</span></span>
+        </li>`;
+    })
+    .join("");
+  return `<p class="section-lede">${s.filesChanged} ${s.filesChanged === 1 ? "file" : "files"} changed, <span class="add">${s.additions} ${s.additions === 1 ? "line" : "lines"} added</span> and <span class="del">${s.deletions} removed</span>.</p>
+    <ul class="file-list">${rows}</ul>`;
 }
 
 function renderWorkflowsSection(session) {
   const a = session.analysis;
-  if (!a || !a.affectedWorkflows.length) return `<p style="color:var(--text-2)">No specific user journeys identified.</p>`;
-  return `<ul class="evidence-list">${a.affectedWorkflows.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`;
+  if (!a || !a.affectedWorkflows.length) return `<p class="muted">No user-facing flows were identified.</p>`;
+  return `<ul class="plain-list">${a.affectedWorkflows.map((w) => `<li>${rich(w)}</li>`).join("")}</ul>`;
 }
 
 function renderBlastRadiusSection(session) {
   const radar = session.radar;
   const byRing = {};
-  for (const n of radar.nodes) {
-    byRing[n.ring] = byRing[n.ring] || [];
-    byRing[n.ring].push(n);
-  }
-  const rows = Object.entries(byRing)
-    .map(([ring, nodes]) => `<li><strong>${escapeHtml(ring)}</strong> (${nodes.length}): ${nodes.map((n) => escapeHtml(n.file)).join(", ")}</li>`)
+  for (const n of radar.nodes) (byRing[n.ring] = byRing[n.ring] || []).push(n);
+  const groups = Object.entries(byRing)
+    .map(
+      ([ring, nodes]) => `<div class="ring-group">
+          <div class="ring-name">${escapeHtml(RING_LABEL[ring] || ring)} <span class="count">${nodes.length}</span></div>
+          <div class="chip-row">${nodes.map((n) => `<code class="tok">${escapeHtml(n.file)}</code>`).join("")}</div>
+        </div>`
+    )
     .join("");
-  return `<p>${radar.center.length} changed file(s) → ${radar.nodes.length} related node(s) discovered across ${radar.rings.length} categories.</p>
-    <ul class="evidence-list">${rows || "<li>No related nodes found.</li>"}</ul>`;
+  return `<p class="section-lede">${radar.center.length} changed ${radar.center.length === 1 ? "file reaches" : "files reach"} ${radar.nodes.length} related ${radar.nodes.length === 1 ? "file" : "files"}.</p>
+    ${groups || `<p class="muted">No related files found.</p>`}`;
 }
 
 function renderSchemaSection(session) {
   const items = session.analysis?.schemaInterfaceImpact || [];
-  if (!items.length) return `<p style="color:var(--text-2)">No schema/interface-level findings for this change.</p>`;
-  return items.map((i) => `<p><span class="badge provenance">${i.provenance}</span> ${escapeHtml(i.summary)}</p>`).join("");
+  if (!items.length) return `<p class="muted">No schema or interface changes found.</p>`;
+  return `<ul class="plain-list">${items.map((i) => `<li>${rich(i.summary)} ${provenanceTag(i.provenance)}</li>`).join("")}</ul>`;
 }
 
 function renderQuestionsSection(session) {
   const qs = session.analysis?.reviewQuestions || [];
-  return `<ol class="evidence-list">${qs.map((q) => `<li>${escapeHtml(q)}</li>`).join("")}</ol>`;
+  return `<ol class="question-list">${qs.map((q) => `<li><span>${rich(q)}</span></li>`).join("")}</ol>`;
+}
+
+function evidenceHtml(evidence) {
+  if (!evidence || !evidence.length) return "";
+  return `<ul class="evidence-list">${evidence
+    .map(
+      (e) => `<li>${e.file ? `<code class="tok">${escapeHtml(e.file)}</code>` : ""}${e.lines?.length ? `<span class="muted">${linesLabel(e.lines)}</span>` : ""}${e.note ? `<span class="evidence-note">${rich(e.note)}</span>` : ""}</li>`
+    )
+    .join("")}</ul>`;
 }
 
 function findingCardHtml(f) {
   return `
     <div class="finding risk-${f.risk} status-${f.status}" data-finding-id="${f.id}">
       <div class="finding-top">
-        <div class="finding-title">${escapeHtml(f.title)}</div>
-        <div>
-          <span class="badge risk-${f.risk}">${f.risk}</span>
-          <span class="badge provenance">${f.provenance}</span>
+        <div class="finding-title">${rich(f.title)}</div>
+        <div class="finding-tags">
+          <span class="badge risk-${f.risk}">${RISK_LABEL[f.risk]}</span>
+          ${provenanceTag(f.provenance)}
         </div>
       </div>
-      <div class="finding-summary">${escapeHtml(f.summary)}</div>
-      <div class="finding-rationale">Risk rule (${escapeHtml(f.riskRuleId)}): ${escapeHtml(f.riskRationale)}</div>
-      ${
-        f.evidence && f.evidence.length
-          ? `<ul class="evidence-list">${f.evidence
-              .map((e) => `<li><code>${escapeHtml(e.file || "")}</code>${e.lines?.length ? ` (lines ${e.lines.join(", ")})` : ""}${e.note ? ` — ${escapeHtml(e.note)}` : ""}</li>`)
-              .join("")}</ul>`
-          : ""
-      }
+      <p class="finding-summary">${rich(f.summary)}</p>
+      <p class="finding-rationale"><strong>Why ${RISK_LABEL[f.risk].toLowerCase()} risk:</strong> ${rich(f.riskRationale)}</p>
+      ${evidenceHtml(f.evidence)}
       <div class="finding-actions">
         <span class="finding-status-pill">${STATUS_LABEL[f.status] || f.status}</span>
         <button class="small" data-action="accept">Accept</button>
         <button class="small" data-action="dismiss">Dismiss</button>
-        <button class="small" data-action="needs_review">Needs Review</button>
+        ${f.status !== "needs_review" ? `<button class="small" data-action="needs_review">Reopen</button>` : ""}
         ${f.actionable ? `<button class="small primary" data-action="fix">Suggest Fix…</button>` : ""}
       </div>
     </div>`;
@@ -509,7 +572,7 @@ function attachFindingHandlers(session) {
 
 async function openFixModal(session, findingId) {
   const finding = session.findings.find((f) => f.id === findingId);
-  openModal("Generating patch…", `<p style="color:var(--text-2)">Asking ${escapeHtml(session.provider)} for a fix for "${escapeHtml(finding.title)}"…</p>`);
+  openModal("Preparing a Fix…", `<p class="modal-lede">Drafting a patch for ${rich(finding.title)}…</p>`);
   try {
     const patch = await state.aiProvider.generatePatch(finding, {
       ...session.evidencePackage,
@@ -531,21 +594,21 @@ async function openFixModal(session, findingId) {
     session.patches.push(record);
     renderFixModal(session, record);
   } catch (err) {
-    openModal("Could not generate patch", `<p class="status-line error">${escapeHtml(err.message)}</p>`);
+    openModal("Couldn't Prepare a Fix", `<p class="status-line error">${escapeHtml(err.message)}</p>`);
   }
 }
 
 function renderFixModal(session, record) {
   const valid = record.validation?.valid !== false;
   openModal(
-    "Suggested Fix — review before applying",
-    `<p>${escapeHtml(record.patch.summary)}</p>
-     <p style="color:var(--text-2);font-size:12.5px">${escapeHtml(record.patch.rationale)}</p>
+    "Review Suggested Fix",
+    `<p class="lede">${rich(record.patch.summary)}</p>
+     <p class="muted">${rich(record.patch.rationale)}</p>
      <pre class="patch-diff">${escapeHtml(record.patch.unifiedDiff || "(no textual diff)")}</pre>
      ${valid ? "" : `<p class="status-line error">Cannot apply: ${escapeHtml(record.validation.reason)}</p>`}
      <div class="finding-actions">
-       <button class="primary" id="approveFixBtn" ${valid ? "" : "disabled"}>Approve &amp; Apply</button>
-       <button id="rejectFixBtn">Reject</button>
+       <button id="rejectFixBtn">Cancel</button>
+       <button class="primary" id="approveFixBtn" ${valid ? "" : "disabled"}>Apply Fix</button>
      </div>
      <div id="fixApplyStatus" class="status-line"></div>`
   );
@@ -603,8 +666,8 @@ function downloadTextFile(filename, content) {
 
 const RISK_ORDER = ["high", "medium", "low", "informational"];
 const RISK_LABEL = { high: "High", medium: "Medium", low: "Low", informational: "Info" };
-const RISK_GLYPH = { high: "▲", medium: "◆", low: "●", informational: "○" };
-const STATUS_LABEL = { needs_review: "Needs review", accepted: "Accepted", dismissed: "Dismissed", fixed: "Fixed" };
+const STATUS_LABEL = { needs_review: "Open", accepted: "Accepted", dismissed: "Dismissed", fixed: "Fixed" };
+const RING_LABEL = { apis: "APIs & consumers", services: "Services", schemas: "Schemas", tests: "Tests", docs: "Docs", dependencies: "Dependencies" };
 
 function byRisk(a, b) {
   return RISK_ORDER.indexOf(a.risk) - RISK_ORDER.indexOf(b.risk);
@@ -643,12 +706,12 @@ function buildSummaryModel(session) {
 }
 
 function summaryRowHtml(f) {
-  const files = [...new Set((f.evidence || []).map((e) => e.file).filter(Boolean))].slice(0, 4);
+  const files = [...new Set((f.evidence || []).map((e) => e.file).filter(Boolean))].filter((x) => !f.title.includes(x)).slice(0, 4);
   return `<li class="summary-row">
       <span class="badge risk-${f.risk}">${RISK_LABEL[f.risk]}</span>
       <div>
-        <div class="row-title">${escapeHtml(f.title)}</div>
-        <div class="row-sub">${escapeHtml(f.summary)}</div>
+        <div class="row-title">${rich(f.title)}</div>
+        <div class="row-sub">${rich(f.summary)}</div>
         ${files.length ? `<div class="row-files">${files.map((x) => `<code>${escapeHtml(x)}</code>`).join("")}</div>` : ""}
       </div>
       <span class="status-chip ${f.status}">${STATUS_LABEL[f.status]}</span>
@@ -691,7 +754,7 @@ function renderSummary(session) {
         ${RISK_ORDER.filter((r) => m.counts[r]).map((r) => `<span class="seg-${r}" style="flex:${m.counts[r]}"></span>`).join("")}
       </div>
       <ul class="risk-legend" aria-hidden="true">
-        ${RISK_ORDER.map((r) => `<li><span class="glyph-${r}">${RISK_GLYPH[r]}</span>${RISK_LABEL[r]} <strong>${m.counts[r]}</strong></li>`).join("")}
+        ${RISK_ORDER.map((r) => `<li><span class="dot seg-${r}"></span>${RISK_LABEL[r]} <strong>${m.counts[r]}</strong></li>`).join("")}
       </ul>
     </div>
 
@@ -704,7 +767,7 @@ function renderSummary(session) {
 
     <div class="summary-body">
       ${m.intent ? `<section class="summary-section"><h3>What This Change Does</h3>
-        <p class="summary-intent">${escapeHtml(m.intent)}${m.intentProvenance ? `<span class="badge provenance">${escapeHtml(m.intentProvenance)}</span>` : ""}</p></section>` : ""}
+        <p class="summary-intent">${rich(m.intent)}</p></section>` : ""}
 
       <section class="summary-section"><h3>Needs Attention <span class="count">${m.open.length}</span></h3>
         ${m.open.length ? `<ul class="summary-list">${m.open.map(summaryRowHtml).join("")}</ul>` : `<p class="summary-empty">Nothing left open.</p>`}
@@ -714,7 +777,7 @@ function renderSummary(session) {
         <ul class="summary-list">${m.fixed.map(summaryRowHtml).join("")}</ul></section>` : ""}
 
       ${m.questions.length ? `<section class="summary-section"><h3>Questions for the Author</h3>
-        <ol class="summary-questions">${m.questions.map((q) => `<li><span>${escapeHtml(q)}</span></li>`).join("")}</ol></section>` : ""}
+        <ol class="summary-questions">${m.questions.map((q) => `<li><span>${rich(q)}</span></li>`).join("")}</ol></section>` : ""}
 
       ${m.dismissed.length ? `<section class="summary-section"><details class="summary-dismissed"><summary>${m.dismissed.length} dismissed ${m.dismissed.length === 1 ? "finding" : "findings"}</summary>
         <ul class="summary-list">${m.dismissed.map(summaryRowHtml).join("")}</ul></details></section>` : ""}
@@ -738,7 +801,7 @@ function renderSummary(session) {
 }
 
 function summaryMarkdown(m) {
-  const row = (f) => [`- **${RISK_GLYPH[f.risk]} ${RISK_LABEL[f.risk]} · ${f.title}** _(${STATUS_LABEL[f.status]})_`, `  ${f.summary}`];
+  const row = (f) => [`- **${RISK_LABEL[f.risk]} risk — ${f.title}** _(${STATUS_LABEL[f.status]})_`, `  ${f.summary}`];
   const lines = [
     `# Review Summary — ${m.repo}`,
     `\`${refLabel(m.base)}\` → \`${refLabel(m.head)}\``,
@@ -781,6 +844,7 @@ $("#genSummaryBtn").addEventListener("click", () => {
   panel.classList.remove("hidden");
   const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   panel.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+  emitStep("summary");
 });
 
 $("#genEvidenceBtn").addEventListener("click", async () => {
@@ -818,7 +882,7 @@ function openModal(title, bodyHtml) {
     <div class="modal-backdrop" id="modalBackdrop">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <button class="modal-close small" id="modalCloseBtn" aria-label="Close dialog">✕</button>
-        <h3 id="modalTitle">${escapeHtml(title)}</h3>
+        <h3 id="modalTitle">${rich(title)}</h3>
         <div id="modalBody">${bodyHtml}</div>
       </div>
     </div>`;
