@@ -35,15 +35,37 @@
 <section class="hero">
   <div class="hero-glow"></div>
   <div class="hero-grid"></div>
+  <div class="floating-symbols">
+    <span>{ }</span>
+    <span>&lt;/&gt;</span>
+    <span>( )</span>
+    <span>[ ]</span>
+  </div>
   <div class="hero-content">
     <div class="hero-kicker">// IBM Bob 2.0 Hackathon</div>
     <h1 class="hero-title">REVIEW BY<br><span>INTENT</span>, NOT LINES.</h1>
     <p class="hero-sub">DiffLens reads your diff against the whole repository — tests, docs, contracts, consumers — and hands reviewers the questions that actually matter.</p>
+    <div class="hero-illustration">
+      <div class="code-window">
+        <div class="code-window-bar">
+          <span class="code-window-dot"></span>
+          <span class="code-window-dot"></span>
+          <span class="code-window-dot"></span>
+        </div>
+        <div class="code-window-body">
+          <div><span class="kw">function</span> <span class="fn">reviewDiff</span>(pr) {</div>
+          <div>&nbsp;&nbsp;<span class="kw">const</span> intent = analyze(pr);</div>
+          <div>&nbsp;&nbsp;<span class="cm">// checks tests, docs, contracts</span></div>
+          <div>&nbsp;&nbsp;<span class="kw">return</span> <span class="str">"reviewed with context"</span>;</div>
+          <div>}</div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 <div class="layout">
   <div class="side-col">
-    <section class="panel">
+    <section class="panel reveal">
       <h2>1 · Load Repository</h2>
       <p style="color:var(--text-2);font-size:var(--fs-small);margin-top:0">
         Choose the repository folder or upload a .zip of it (both include
@@ -78,7 +100,7 @@
       </details>
     </section>
 
-    <section class="panel" id="compareSection" style="display:none">
+    <section class="panel reveal" id="compareSection" style="display:none">
       <h2>2 · Choose Comparison</h2>
       <div class="field">
         <label for="baseRef">Base</label>
@@ -92,7 +114,7 @@
       <div id="diffStatus" class="status-line"></div>
     </section>
 
-    <section class="panel" id="analyzeSection" style="display:none">
+    <section class="panel reveal" id="analyzeSection" style="display:none">
       <h2>3 · Run Analysis</h2>
       <p style="color:var(--text-2);font-size:12.5px;margin-top:0">
         The diff above looks small. DiffLens will trace it against tests,
@@ -102,7 +124,7 @@
       <div id="analyzeStatus" class="status-line"></div>
     </section>
 
-    <section class="panel hidden" id="summarySection">
+    <section class="panel reveal hidden" id="summarySection">
       <h2>4 · Reviewer Summary</h2>
       <button id="genSummaryBtn">Generate Reviewer Summary</button>
       <button id="genEvidenceBtn" class="ghost small" style="margin-top:6px">Write Evidence Docs</button>
@@ -112,12 +134,12 @@
   </div>
 
   <div class="main-col">
-    <section class="panel hidden" id="diffPanel">
+    <section class="panel reveal hidden" id="diffPanel">
       <h2>Raw Diff</h2>
       <div id="diffView" class="diff-view"></div>
     </section>
 
-    <section class="panel" id="radarPanel" style="display:none">
+    <section class="panel reveal" id="radarPanel" style="display:none">
       <h2>Review Radar — Blast Radius</h2>
       <div class="radar-wrap">
         <div id="radarSvgWrap"></div>
@@ -125,7 +147,7 @@
       </div>
     </section>
 
-    <section class="panel" id="briefPanel" style="display:none">
+    <section class="panel reveal" id="briefPanel" style="display:none">
       <h2>Intent-Aware Review Brief</h2>
       <div id="briefRoot"></div>
     </section>
@@ -143,5 +165,6 @@
 
 <script src="js/radar.js"></script>
 <script src="js/app.js"></script>
+<script src="js/scrollReveal.js"></script>
 </body>
 </html>
