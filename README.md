@@ -262,7 +262,7 @@ what the static build exists to solve properly rather than work around.
 
 ```bash
 npm install
-npm run setup:demo   # optional: re-provisions demo-repo/node_modules if needed
+npm run setup:demo   # initializes demo branches, installs dependencies, and checks both branches
 npm start             # DiffLens on http://localhost:5175
 ```
 
