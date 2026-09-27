@@ -37,6 +37,23 @@ themeButtons.forEach((btn, i) => {
 });
 applyTheme(currentTheme());
 
+// --- Toasts --------------------------------------------------------------------
+
+function showToast(message, kind = "ok", ms = 2600) {
+  const root = $("#toastRoot");
+  if (!root) return;
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  el.textContent = message;
+  root.appendChild(el);
+  setTimeout(() => {
+    el.classList.add("leaving");
+    el.addEventListener("animationend", () => el.remove(), { once: true });
+  }, ms);
+}
+window.DiffLensToast = showToast;
+
+
 // --- Landing ↔ app -----------------------------------------------------------------
 
 function showApp() {
@@ -75,10 +92,14 @@ function askAboutTutorial() {
         </div>
       </div>
     </div>`;
-  const close = () => {
-    root.innerHTML = "";
+  
+    const close = () => {
+    const backdrop = $("#welcomeBackdrop");
+    backdrop.classList.add("leaving");
+    setTimeout(() => { root.innerHTML = ""; }, 150);
     document.removeEventListener("keydown", onKey);
   };
+  
   const onKey = (e) => {
     if (e.key === "Escape") {
       close();
@@ -240,7 +261,11 @@ function endTour() {
 
 function onNext() {
   const step = STEPS[tour.index];
-  if (tour.index === STEPS.length - 1) return endTour();
+  if (tour.index === STEPS.length - 1) {
+    endTour();
+    showToast("Tour complete — you're ready to review your own changes.");
+    return;
+  }
   if (step.action && step.waitFor) {
     tour.waiting = step.waitFor;
     $("#tourNext").disabled = true;
@@ -253,6 +278,7 @@ function onNext() {
         $("#tourNext").disabled = false;
         $("#tourNext").textContent = "Try Again";
         $("#tourStatus").textContent = "That step didn't finish — check the message in the highlighted panel.";
+        showToast("That step is taking longer than expected.", "error");
       }
     }, 20000);
     return;
