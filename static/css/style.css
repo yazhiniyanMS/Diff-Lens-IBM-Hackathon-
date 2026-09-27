@@ -189,10 +189,38 @@ code.tok {
 .hero-sub { font: 400 19px/1.5 var(--font); color: var(--label-2); margin: var(--s5) auto 0; max-width: 620px; }
 .hero-actions { margin-top: var(--s6); }
 
-.hero-preview { margin: var(--s7) auto 0; max-width: 560px; }
-.preview-verdict { display: flex; gap: var(--s4); align-items: center; text-align: left; background: var(--surface); border-radius: var(--r-l); padding: var(--s5); border: 1px solid var(--separator); }
-.preview-title { font: var(--t-title3); color: var(--red); }
-.preview-sub { font: var(--t-callout); color: var(--label-2); margin-top: 2px; }
+.hero-actions { display: flex; gap: var(--s5); justify-content: center; align-items: center; flex-wrap: wrap; }
+.large-link { font: 500 17px/1 var(--font); }
+
+/* Showcase: the product's idea in one picture — a small diff, and the
+   files it reaches outside the pull request. */
+.showcase {
+  margin: var(--s8) auto 0; max-width: 880px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1.15fr); align-items: center;
+  background: var(--surface); border-radius: 20px; padding: var(--s6);
+}
+.showcase-label { font: var(--t-caption); color: var(--label-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--s3); }
+.showcase-caption { font: var(--t-footnote); color: var(--label-3); margin-top: var(--s3); }
+.mini-diff { background: var(--inset); border-radius: var(--r-m); padding: var(--s3) 0; font: 13px/1.7 var(--mono); overflow: hidden; }
+.mini-file { color: var(--label-3); padding: 0 var(--s4) var(--s1); font-size: 12px; }
+.ml { padding: 0 var(--s4); white-space: nowrap; color: var(--label); }
+.ml span { display: inline-block; width: 16px; color: var(--label-3); }
+.ml.del { background: var(--red-soft); }
+.ml.add { background: var(--green-soft); }
+.showcase-links { width: 100%; height: 200px; }
+.showcase-links path { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-opacity: 0.45; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.reach-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.reach-list li {
+  display: grid; gap: 2px; padding: var(--s3) var(--s4);
+  border-radius: var(--r-m); background: var(--inset); border-left: 3px solid var(--accent);
+}
+.reach-list li > code { font: 600 13px/1.3 var(--mono); color: var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reach-list li > span { font: var(--t-footnote); color: var(--label-2); }
+.reach-list code.tok { font-size: 12px; }
+
+.feature-icon { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-m); background: var(--accent-soft); color: var(--accent-text); margin-bottom: var(--s3); }
+.feature-icon .icon { width: 22px; height: 22px; }
+.trust-line { text-align: center; font: var(--t-footnote); color: var(--label-3); margin-top: var(--s7); }
 
 .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s6); margin-top: var(--s8); padding-top: var(--s6); border-top: 1px solid var(--separator); }
 .feature h2 { font: var(--t-title3); margin-bottom: var(--s2); }
@@ -532,6 +560,9 @@ body[data-stage="progress"] .app-footer { visibility: hidden; }
   .results-grid { grid-template-columns: 1fr; }
   .context-col { position: static; }
   .features { grid-template-columns: 1fr; gap: var(--s5); }
+  .showcase { grid-template-columns: 1fr; padding: var(--s5); gap: var(--s2); }
+  .showcase-links { display: none; }
+  .showcase-reach { margin-top: var(--s4); }
 }
 @media (max-width: 640px) {
   .app-header { padding: 0 var(--s4); }

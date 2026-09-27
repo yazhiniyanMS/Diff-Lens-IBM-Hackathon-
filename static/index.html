@@ -53,33 +53,57 @@
     <p class="hero-sub">DiffLens follows a change through your tests, docs, and API consumers, and tells you whether it's safe to merge. It runs entirely in your browser; your code never leaves this tab.</p>
     <div class="hero-actions">
       <button type="button" class="btn primary large" id="getStartedBtn">Get Started</button>
+      <button type="button" class="link-btn large-link" id="heroSampleBtn">Try the sample <span aria-hidden="true">›</span></button>
     </div>
   </section>
 
-  <figure class="hero-preview" aria-label="Example verdict">
-    <div class="preview-verdict">
-      <span class="verdict-mark block" aria-hidden="true">!</span>
-      <div>
-        <p class="preview-title">Not ready to merge</p>
-        <p class="preview-sub">3 high-risk findings — a renamed field still used by <code class="tok">OrderCard.js</code>, its contract test, and the API docs.</p>
+  <figure class="showcase" aria-label="Example: a two-line change and the three files it reaches">
+    <div class="showcase-diff">
+      <p class="showcase-label">The pull request</p>
+      <div class="mini-diff" aria-hidden="true">
+        <p class="mini-file">backend/models/order.js</p>
+        <p class="ml del"><span>−</span>customerName: "Priya Nair",</p>
+        <p class="ml add"><span>+</span>name: "Priya Nair",</p>
       </div>
+      <p class="showcase-caption">2 lines changed. Looks harmless.</p>
+    </div>
+
+    <svg class="showcase-links" viewBox="0 0 120 240" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 120 C 60 120, 60 40, 120 40" />
+      <path d="M0 120 L 120 120" />
+      <path d="M0 120 C 60 120, 60 200, 120 200" />
+    </svg>
+
+    <div class="showcase-reach">
+      <p class="showcase-label">What it reaches</p>
+      <ul class="reach-list">
+        <li><code>frontend/src/OrderCard.js</code><span>still reads <code class="tok">customerName</code></span></li>
+        <li><code>tests/orders.contract.test.js</code><span>still asserts the old field</span></li>
+        <li><code>docs/api/orders.md</code><span>still documents it</span></li>
+      </ul>
+      <p class="showcase-caption">None of these are in the pull request. DiffLens finds them.</p>
     </div>
   </figure>
 
   <section class="features" aria-label="How it works">
     <article class="feature">
+      <span class="feature-icon"><svg data-icon="folder" aria-hidden="true"></svg></span>
       <h2>Open a repository</h2>
       <p>Drop in a folder or a .zip. DiffLens picks the branches to compare for you.</p>
     </article>
     <article class="feature">
+      <span class="feature-icon"><svg data-icon="reach" aria-hidden="true"></svg></span>
       <h2>See what it touches</h2>
       <p>Every file the change reaches, including the ones the author forgot to update.</p>
     </article>
     <article class="feature">
+      <span class="feature-icon"><svg data-icon="check-circle" aria-hidden="true"></svg></span>
       <h2>Share a clear answer</h2>
       <p>A merge verdict and a ready-to-paste review, updated as you triage.</p>
     </article>
   </section>
+
+  <p class="trust-line">No sign-up · Nothing is uploaded · Open source</p>
 </main>
 
 <!-- App --------------------------------------------------------------------- -->
