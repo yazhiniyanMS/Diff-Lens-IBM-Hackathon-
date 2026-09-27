@@ -65,8 +65,17 @@
 </section>
 <div class="layout">
   <div class="side-col">
-    <section class="panel reveal">
-      <h2>1 · Load Repository</h2>
+    <div class="step-nav">
+  <div class="step-dot active" data-step="1">1</div>
+  <div class="step-line"></div>
+  <div class="step-dot" data-step="2">2</div>
+  <div class="step-line"></div>
+  <div class="step-dot" data-step="3">3</div>
+  <div class="step-line"></div>
+  <div class="step-dot" data-step="4">4</div>
+</div>
+    <section class="panel reveal" id="loadRepoPanel">
+       <h2>1 · Load Repository</h2>
       <p style="color:var(--text-2);font-size:var(--fs-small);margin-top:0">
         Choose the repository folder or upload a .zip of it (both include
         its <code>.git</code> history, which DiffLens needs to compute a diff).
