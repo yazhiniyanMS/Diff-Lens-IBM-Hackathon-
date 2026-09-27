@@ -1218,6 +1218,7 @@ applyTheme(document.documentElement.getAttribute("data-theme") || "system");
 // --- Landing ----------------------------------------------------------------------------------
 
 $("#homeBtn").addEventListener("click", showLanding);
+$("#heroSampleBtn").addEventListener("click", () => openSample());
 $("#getStartedBtn").addEventListener("click", () => {
   openSheet({
     title: "Would you like a quick tour?",
