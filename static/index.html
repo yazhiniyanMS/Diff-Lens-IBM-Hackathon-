@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light dark" />
 <title>DiffLens</title>
+<meta property="og:title" content="DiffLens — Review pull requests by intent" />
+<meta property="og:description" content="Traces a PR through your tests, docs, and API consumers, then hands you a clear merge verdict." />
 <link rel="stylesheet" href="css/style.css" />
 <script>
   try {
@@ -205,6 +207,7 @@
 </footer>
 
 <div id="modalRoot"></div>
+<div id="toastRoot" class="toast-root" aria-live="polite"></div>
 
 <script src="vendor/diff.js"></script>
 <script src="js/radar.js"></script>
