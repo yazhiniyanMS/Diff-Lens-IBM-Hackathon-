@@ -39,13 +39,15 @@ function svgEl(tag, attrs = {}) {
   return el;
 }
 
-function makeNode({ x, y, radius, statusClass, label, statusKey, onActivate }) {
+function makeNode({ x, y, radius, statusClass, label, statusKey, onActivate, delay = 0 }) {
   const g = svgEl("g", {
     class: `radar-node ${statusClass}`,
     transform: `translate(${x},${y})`,
     tabindex: "0",
     role: "button",
     "aria-label": `${label}: ${STATUS_LABEL[statusKey] || statusKey}`,
+    style: `animation-delay: ${delay}ms`,
+
   });
   const title = svgEl("title");
   title.textContent = `${label} — ${STATUS_LABEL[statusKey] || statusKey}`;
@@ -123,9 +125,11 @@ function renderRadar(container, radar, onNodeClick) {
       statusClass: "changed",
       statusKey: "changed",
       label: c.label,
+      delay: i * 60,
       onActivate: () => onNodeClick({ kind: "changed", file: c.file }),
     });
-    nodeLayer.appendChild(node);
+    node.insertBefore(svgEl("circle", { r: 20, class: "radar-node-halo" }), node.firstChild.nextSibling);
+    nodeLayer.appendChild(node)
   });
   const anchor = centerPositions[0] || { x: cx, y: cy };
 
@@ -137,7 +141,8 @@ function renderRadar(container, radar, onNodeClick) {
       const angle = (i / Math.max(count, 1)) * Math.PI * 2 - Math.PI / 2 + ringIdx * 0.35;
       const x = cx + r * Math.cos(angle);
       const y = cy + r * Math.sin(angle);
-
+      
+      const nodeDelay = 200 + ringIdx * 120 + i * 40;
       edgeLayer.appendChild(svgEl("line", { x1: anchor.x, y1: anchor.y, x2: x, y2: y, class: "radar-edge" }));
 
       const radius = n.status === "risk" ? 10 : 8;
