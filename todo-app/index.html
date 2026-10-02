@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>To-Do List</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --text: #1d2330;
+      --muted: #6b7280;
+      --border: #e3e5ea;
+      --accent: #4f46e5;
+      --accent-text: #ffffff;
+      --danger: #dc2626;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12141a;
+        --card: #1c1f27;
+        --text: #e8eaf0;
+        --muted: #9aa1ae;
+        --border: #2c303b;
+        --accent: #818cf8;
+        --accent-text: #12141a;
+        --danger: #f87171;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      padding: 48px 16px;
+    }
+    main { width: 100%; max-width: 520px; }
+    h1 { margin: 0 0 20px; font-size: 1.75rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    form { display: flex; gap: 8px; padding: 12px; border-bottom: 1px solid var(--border); }
+    input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 12px;
+      font: inherit;
+      color: inherit;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: inherit;
+    }
+    .add { padding: 10px 16px; background: var(--accent); color: var(--accent-text); font-weight: 600; }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    li input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+    li .label { flex: 1; word-break: break-word; }
+    li.done .label { text-decoration: line-through; color: var(--muted); }
+    li .delete { color: var(--muted); padding: 4px 8px; opacity: 0; }
+    li:hover .delete, li .delete:focus { opacity: 1; }
+    li .delete:hover { color: var(--danger); }
+    @media (hover: none) { li .delete { opacity: 1; } }
+    .empty { padding: 24px 12px; text-align: center; color: var(--muted); }
+    footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    .filters { display: flex; gap: 4px; }
+    .filters button { padding: 4px 10px; border: 1px solid transparent; }
+    .filters button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); }
+    .clear:hover { color: var(--danger); }
+    .hint { margin-top: 12px; font-size: 0.8rem; color: var(--muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>To-Do List</h1>
+    <div class="card">
+      <form id="new-form" autocomplete="off">
+        <input id="new-text" type="text" placeholder="What needs to be done?" aria-label="New task" maxlength="200">
+        <button class="add" type="submit">Add</button>
+      </form>
+      <ul id="list"></ul>
+      <footer>
+        <span id="count"></span>
+        <div class="filters" role="group" aria-label="Filter tasks">
+          <button type="button" data-filter="all">All</button>
+          <button type="button" data-filter="active">Active</button>
+          <button type="button" data-filter="done">Done</button>
+        </div>
+        <button type="button" class="clear" id="clear">Clear done</button>
+      </footer>
+    </div>
+    <p class="hint">Double-click a task to edit it. Tasks are saved in this browser.</p>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "todo-app.tasks";
+    const list = document.getElementById("list");
+    const form = document.getElementById("new-form");
+    const input = document.getElementById("new-text");
+    const count = document.getElementById("count");
+    const clearBtn = document.getElementById("clear");
+    const filterBtns = document.querySelectorAll("[data-filter]");
+
+    let tasks = load();
+    let filter = "all";
+
+    function load() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        return Array.isArray(saved) ? saved : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      } catch {
+        // Storage unavailable (e.g. private mode); the list still works for this visit.
+      }
+    }
+
+    function update() {
+      save();
+      render();
+    }
+
+    function render() {
+      const visible = tasks.filter(t =>
+        filter === "all" || (filter === "done" ? t.done : !t.done));
+
+      list.replaceChildren(...visible.map(renderItem));
+      if (visible.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "empty";
+        empty.textContent = tasks.length === 0 ? "Nothing to do yet. Add a task above." : "No tasks here.";
+        list.append(empty);
+      }
+
+      const left = tasks.filter(t => !t.done).length;
+      count.textContent = `${left} task${left === 1 ? "" : "s"} left`;
+      clearBtn.hidden = !tasks.some(t => t.done);
+      filterBtns.forEach(b => b.setAttribute("aria-pressed", b.dataset.filter === filter));
+    }
+
+    function renderItem(task) {
+      const li = document.createElement("li");
+      li.classList.toggle("done", task.done);
+
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = task.done;
+      box.setAttribute("aria-label", `Mark "${task.text}" as done`);
+      box.addEventListener("change", () => { task.done = box.checked; update(); });
+
+      const label = document.createElement("span");
+      label.className = "label";
+      label.textContent = task.text;
+      label.addEventListener("dblclick", () => startEdit(li, label, task));
+
+      const del = document.createElement("button");
+      del.className = "delete";
+      del.type = "button";
+      del.textContent = "✕";
+      del.setAttribute("aria-label", `Delete "${task.text}"`);
+      del.addEventListener("click", () => { tasks = tasks.filter(t => t !== task); update(); });
+
+      li.append(box, label, del);
+      return li;
+    }
+
+    function startEdit(li, label, task) {
+      const field = document.createElement("input");
+      field.type = "text";
+      field.value = task.text;
+      field.maxLength = 200;
+      label.replaceWith(field);
+      field.focus();
+
+      let finished = false;
+      const finish = (commit) => {
+        if (finished) return;
+        finished = true;
+        const text = field.value.trim();
+        if (commit) {
+          if (text) task.text = text;
+          else tasks = tasks.filter(t => t !== task);
+        }
+        update();
+      };
+      field.addEventListener("keydown", e => {
+        if (e.key === "Enter") finish(true);
+        if (e.key === "Escape") finish(false);
+      });
+      field.addEventListener("blur", () => finish(true));
+    }
+
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      tasks.push({ id: Date.now(), text, done: false });
+      input.value = "";
+      update();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      tasks = tasks.filter(t => !t.done);
+      update();
+    });
+
+    filterBtns.forEach(b => b.addEventListener("click", () => {
+      filter = b.dataset.filter;
+      render();
+    }));
+
+    render();
+  </script>
+</body>
+</html>
